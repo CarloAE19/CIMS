@@ -626,9 +626,13 @@ include 'layout/header.php';
                                         ?>
                                         <!-- VIEW DISCREPANCY / DELIVERY LOG BUTTON -->
                                         <button type="button" class="btn btn-sm <?= $btnClass ?> fw-bold shadow-sm me-1"
-                                            title="View Delivery History & Remarks" data-pono="<?= htmlspecialchars($po['po_no']) ?>"
+                                            title="View Delivery History & Remarks" 
+                                            data-pono="<?= htmlspecialchars($po['po_no']) ?>"
+                                            data-poid="<?= (int)$po['id'] ?>"
+                                            data-status="<?= htmlspecialchars($po['status']) ?>"
                                             data-remarks="<?= htmlspecialchars($po['delay_remarks'] ?? 'No delivery remarks logged yet.') ?>"
-                                            data-proof="<?= htmlspecialchars($secureReceiptUrl) ?>" onclick="viewDiscrepancy(this)">
+                                            data-proof="<?= htmlspecialchars($secureReceiptUrl) ?>" 
+                                            onclick="viewDiscrepancy(this)">
                                             <i class="bi <?= $btnIcon ?>"></i> <span class="ms-1"><?= $btnText ?></span>
                                         </button>
                                     <?php endif; ?>
@@ -908,38 +912,278 @@ include 'layout/header.php';
     }
 
     window.viewDiscrepancy = function (btnElem) {
-        document.getElementById('discPoNo').innerText = btnElem.getAttribute('data-pono');
+        const poNo = btnElem.getAttribute('data-pono') || '';
+        const poStatus = btnElem.getAttribute('data-status') || '';
+        const poId = btnElem.getAttribute('data-poid') || '';
+        const rawText = (btnElem.getAttribute('data-remarks') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 
-        let rawText = (btnElem.getAttribute('data-remarks') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        // 1. Update Header Information
+        const poNoElem = document.getElementById('discPoNo');
+        if (poNoElem) poNoElem.innerText = poNo;
 
-        // Split by '[DELIVERY DISCREPANCY]:' and deduplicate entries
-        const parts = rawText.split(/\[DELIVERY DISCREPANCY\]:/i);
-        const uniqueBlocks = [];
-        parts.forEach(part => {
-            const trimmed = part.trim();
-            const normalized = trimmed.replace(/\s+/g, ' ');
-            if (trimmed && !uniqueBlocks.some(b => b.replace(/\s+/g, ' ') === normalized)) {
-                uniqueBlocks.push(trimmed);
+        const isPartial = (poStatus === 'Partially Delivered' || poStatus === 'Partially Received');
+        const isDiscrepancy = (poStatus === 'Delivered (Discrepancy)');
+
+        // Header Styling
+        const modalCard = document.getElementById('discModalCard');
+        const modalIconWrap = document.getElementById('discModalIconWrap');
+        const modalIcon = document.getElementById('discModalIcon');
+        const modalTitle = document.getElementById('discModalTitle');
+        const modalSubtitle = document.getElementById('discModalSubtitle');
+        const statusBadge = document.getElementById('discPoStatusBadge');
+
+        if (isPartial) {
+            if (modalCard) modalCard.style.setProperty('border-top', '4px solid #ffc107', 'important');
+            if (modalIconWrap) {
+                modalIconWrap.className = 'rounded-circle p-2 bg-warning-subtle text-warning d-flex align-items-center justify-content-center';
             }
-        });
-
-        let cleanHtml = '';
-        if (uniqueBlocks.length > 0) {
-            uniqueBlocks.forEach(block => {
-                cleanHtml += `<div class="text-danger fw-bold mb-2 mt-2 pb-1 border-bottom border-danger border-opacity-25"><i class="bi bi-exclamation-triangle-fill me-1"></i> DELIVERY DISCREPANCY RECORD</div>`;
-                let blockText = block.replace(/⚠️\s*\[UNSUPPLIED \/ SOLD OUT\]/g, '<span class="badge bg-warning text-dark ms-1 shadow-sm"><i class="bi bi-x-circle-fill me-1"></i> UNSUPPLIED / SOLD OUT</span>');
-                blockText = blockText.replace(/\n/g, '<br>');
-                cleanHtml += `<div class="mb-3">${blockText}</div>`;
-            });
-        } else if (rawText.trim()) {
-            let blockText = rawText.replace(/⚠️\s*\[UNSUPPLIED \/ SOLD OUT\]/g, '<span class="badge bg-warning text-dark ms-1 shadow-sm"><i class="bi bi-x-circle-fill me-1"></i> UNSUPPLIED / SOLD OUT</span>');
-            cleanHtml = blockText.replace(/\n/g, '<br>');
+            if (modalIcon) modalIcon.className = 'bi bi-clock-history fs-5';
+            if (modalTitle) modalTitle.innerText = 'Delivery Intake & Audit History';
+            if (modalSubtitle) modalSubtitle.innerText = 'Multi-Stage Fulfillment Timeline (Remaining Items to Follow)';
+            if (statusBadge) {
+                statusBadge.className = 'badge bg-warning text-dark border border-warning shadow-sm';
+                statusBadge.innerHTML = '<i class="bi bi-pie-chart-fill me-1"></i> Partially Delivered';
+            }
+        } else if (isDiscrepancy) {
+            if (modalCard) modalCard.style.setProperty('border-top', '4px solid #dc3545', 'important');
+            if (modalIconWrap) {
+                modalIconWrap.className = 'rounded-circle p-2 bg-danger-subtle text-danger d-flex align-items-center justify-content-center';
+            }
+            if (modalIcon) modalIcon.className = 'bi bi-exclamation-octagon-fill fs-5';
+            if (modalTitle) modalTitle.innerText = 'Delivery & Discrepancy Log';
+            if (modalSubtitle) modalSubtitle.innerText = 'Order Finalized with Supplier Shortages / Cancellations';
+            if (statusBadge) {
+                statusBadge.className = 'badge bg-danger text-white shadow-sm';
+                statusBadge.innerHTML = '<i class="bi bi-x-octagon-fill me-1"></i> Delivered (Discrepancy)';
+            }
         } else {
-            cleanHtml = '<div class="text-muted fst-italic">No discrepancy notes provided.</div>';
+            if (modalCard) modalCard.style.setProperty('border-top', '4px solid #0d6efd', 'important');
+            if (modalIconWrap) {
+                modalIconWrap.className = 'rounded-circle p-2 bg-primary-subtle text-primary d-flex align-items-center justify-content-center';
+            }
+            if (modalIcon) modalIcon.className = 'bi bi-card-checklist fs-5';
+            if (modalTitle) modalTitle.innerText = 'Order Delivery Manifest';
+            if (modalSubtitle) modalSubtitle.innerText = 'Receipt and intake verification log';
+            if (statusBadge) {
+                statusBadge.className = 'badge bg-secondary text-white';
+                statusBadge.innerText = poStatus || 'Pending';
+            }
         }
 
-        document.getElementById('discRemarks').innerHTML = cleanHtml;
+        // 2. Action buttons in modal footer (Quick "Receive Next Batch" button if still open)
+        const actionBtnContainer = document.getElementById('discActionButtons');
+        if (actionBtnContainer) {
+            if (isPartial && poId) {
+                actionBtnContainer.innerHTML = `
+                    <button type="button" class="btn btn-success fw-bold px-4 shadow-sm" onclick="bootstrap.Modal.getInstance(document.getElementById('discrepancyModal'))?.hide(); openReceiveModal(${poId}, '${poNo}');">
+                        <i class="bi bi-box-arrow-in-down me-1"></i> Receive Next Batch
+                    </button>
+                `;
+            } else {
+                actionBtnContainer.innerHTML = '';
+            }
+        }
 
+        // 3. Raw Log Container
+        const rawLogElem = document.getElementById('discRawLog');
+        if (rawLogElem) {
+            rawLogElem.innerText = rawText || 'No log entries recorded.';
+        }
+
+        // 4. Parse Batches and Structured Logs
+        const timelineContainer = document.getElementById('discTimelineContainer');
+        const batchCountBadge = document.getElementById('discBatchCountBadge');
+        if (!timelineContainer) return;
+
+        timelineContainer.innerHTML = '';
+
+        if (!rawText) {
+            timelineContainer.innerHTML = `
+                <div class="card border-0 shadow-sm p-4 text-center text-muted rounded-3 bg-white">
+                    <i class="bi bi-inbox fs-2 d-block mb-1 text-secondary opacity-50"></i>
+                    <span>No delivery logs or activity remarks recorded for this purchase order.</span>
+                </div>
+            `;
+            if (batchCountBadge) batchCountBadge.innerText = '0 Records';
+        } else {
+            // Check if there are structured delivery batches: [DELIVERY BATCH — ...]
+            const batchRegex = /\[DELIVERY BATCH\s*—\s*([^\]]+)\]:\s*([\s\S]*?)(?=(?:\[DELIVERY BATCH|\[DELIVERY DISCREPANCY|$))/gi;
+            const batches = [];
+            let match;
+
+            while ((match = batchRegex.exec(rawText)) !== null) {
+                batches.push({
+                    meta: match[1].trim(), // e.g. "Sep 07, 2026 5:29 PM by Angelo Carlo Pedrosa"
+                    content: match[2].trim()
+                });
+            }
+
+            if (batches.length > 0) {
+                if (batchCountBadge) {
+                    batchCountBadge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1';
+                    batchCountBadge.innerText = `${batches.length} Delivery ${batches.length === 1 ? 'Batch' : 'Batches'}`;
+                }
+
+                batches.forEach((batch, index) => {
+                    const batchNum = index + 1;
+                    let datePart = batch.meta;
+                    let officerPart = 'Warehouse Officer';
+                    if (batch.meta.includes(' by ')) {
+                        const parts = batch.meta.split(' by ');
+                        datePart = parts[0].trim();
+                        officerPart = parts[1].trim();
+                    }
+
+                    const lines = batch.content.split('\n').filter(l => l.trim().length > 0);
+
+                    let itemsHtml = '';
+                    lines.forEach(line => {
+                        const rawTrimmed = line.trim().replace(/^-\s*/, '');
+
+                        // Regex to parse structured line:
+                        // e.g. "Solar Panel [Code: ITM-5616]: Received 10 units today (Total: 10/15) @ ₱150.00 ⏳ [5 Remainder To Follow from Supplier]"
+                        const parsedMatch = rawTrimmed.match(/^(.+?)\s*\[Code:\s*([^\]]+)\]:\s*Received\s*([\d\.,]+)\s*(?:units\s*)?today\s*\(Total:\s*([\d\.,]+)\/([\d\.,]+)\)(.*)$/i);
+
+                        if (parsedMatch) {
+                            const itemName = parsedMatch[1].trim();
+                            const itemCode = parsedMatch[2].trim();
+                            const todayQty = parsedMatch[3].trim();
+                            const totalRecv = parseFloat(parsedMatch[4].replace(/,/g, '')) || 0;
+                            const orderedQty = parseFloat(parsedMatch[5].replace(/,/g, '')) || 1;
+                            const extraInfo = parsedMatch[6] || '';
+
+                            const pct = Math.min(100, Math.round((totalRecv / orderedQty) * 100));
+
+                            // Extract unit price if present
+                            const priceMatch = extraInfo.match(/@\s*(₱[\d\.,]+)/);
+                            const unitPriceStr = priceMatch ? priceMatch[1] : '';
+
+                            // Status Disposition Pill (Clean, concise, and non-wrapping)
+                            let statusPill = '';
+                            if (extraInfo.includes('SOLD OUT')) {
+                                const cancelMatch = extraInfo.match(/SOLD OUT\s*-\s*(\d+)/i);
+                                const cancelQty = cancelMatch ? cancelMatch[1] : (orderedQty - totalRecv);
+                                statusPill = `<span class="badge bg-danger text-white shadow-sm px-2.5 py-1.5 text-nowrap"><i class="bi bi-x-octagon-fill me-1"></i>${cancelQty} Sold Out</span>`;
+                            } else if (extraInfo.includes('Remainder To Follow') || extraInfo.includes('to follow')) {
+                                const followMatch = extraInfo.match(/\[(\d+)\s*Remainder To Follow/i);
+                                const followQty = followMatch ? followMatch[1] : (orderedQty - totalRecv);
+                                statusPill = `<span class="badge bg-warning text-dark border border-warning shadow-sm px-2.5 py-1.5 text-nowrap"><i class="bi bi-hourglass-split me-1 text-dark"></i>${followQty} To Follow</span>`;
+                            } else if (extraInfo.includes('[COMPLETE]') || totalRecv >= orderedQty) {
+                                statusPill = `<span class="badge bg-success text-white shadow-sm px-2.5 py-1.5 text-nowrap"><i class="bi bi-check2-circle me-1"></i>100% Fulfilled</span>`;
+                            }
+
+                            itemsHtml += `
+                                <div class="p-2.5 p-md-3 rounded-3 bg-light border mb-2 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2.5">
+                                    <div class="d-flex align-items-center gap-2.5">
+                                        <div class="bg-white rounded-circle p-2 border shadow-sm text-primary d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px;">
+                                            <i class="bi bi-box-seam fs-6"></i>
+                                        </div>
+                                        <div>
+                                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                                <span class="fw-bold text-dark fs-6 mb-0">${itemName}</span>
+                                                <span class="badge bg-white text-secondary border font-monospace shadow-sm" style="font-size: 0.72rem;">${itemCode}</span>
+                                            </div>
+                                            ${unitPriceStr ? `<small class="text-muted d-block" style="font-size: 0.75rem;">Unit Price: <strong class="text-primary">${unitPriceStr}</strong></small>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="d-flex flex-wrap align-items-center justify-content-md-end gap-2 flex-shrink-0">
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5 fw-bold text-nowrap" style="font-size: 0.80rem;">
+                                            <i class="bi bi-plus-circle me-1"></i>+${todayQty} units
+                                        </span>
+                                        <span class="badge bg-white text-secondary border px-2.5 py-1.5 fw-semibold shadow-sm text-nowrap" style="font-size: 0.80rem;" title="Fulfilled Progress">
+                                            <i class="bi bi-pie-chart me-1 text-muted"></i>Total: ${totalRecv}/${orderedQty} (${pct}%)
+                                        </span>
+                                        ${statusPill}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            // Fallback for unstructured lines
+                            let statusPill = '';
+                            let cleanLine = rawTrimmed;
+
+                            if (cleanLine.includes('SOLD OUT')) {
+                                statusPill = `<span class="badge bg-danger text-white shadow-sm px-2 py-1"><i class="bi bi-x-circle-fill me-1"></i> Sold Out (Cancelled)</span>`;
+                            } else if (cleanLine.includes('Remainder To Follow') || cleanLine.includes('to follow')) {
+                                statusPill = `<span class="badge bg-warning text-dark border border-warning shadow-sm px-2 py-1"><i class="bi bi-hourglass-split me-1"></i> To Follow (Backordered)</span>`;
+                            } else if (cleanLine.includes('[COMPLETE]')) {
+                                statusPill = `<span class="badge bg-success text-white shadow-sm px-2 py-1"><i class="bi bi-check2-circle me-1"></i> Fulfilled (100%)</span>`;
+                            }
+
+                            cleanLine = cleanLine.replace(/⏳\s*\[[^\]]+\]/g, '')
+                                                 .replace(/⚠️\s*\[[^\]]+\]/g, '')
+                                                 .replace(/✅\s*\[[^\]]+\]/g, '')
+                                                 .trim();
+
+                            itemsHtml += `
+                                <div class="p-2.5 rounded-2 bg-light border mb-2 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                                    <div class="text-dark fw-semibold" style="font-size: 0.88rem;">
+                                        <i class="bi bi-box-seam me-1.5 text-primary"></i> ${cleanLine}
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        ${statusPill}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+
+                    const isLatest = (index === batches.length - 1);
+                    const batchBadgeClass = isLatest ? 'bg-primary' : 'bg-dark';
+
+                    const batchCard = document.createElement('div');
+                    batchCard.className = 'card border-0 shadow-sm rounded-3 overflow-hidden';
+                    batchCard.innerHTML = `
+                        <div class="card-header bg-white border-bottom py-2.5 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge ${batchBadgeClass} text-white fw-bold px-2 py-1">Batch #${batchNum}</span>
+                                <span class="fw-bold text-dark small"><i class="bi bi-calendar-event me-1 text-muted"></i> ${datePart}</span>
+                                ${isLatest ? '<span class="badge bg-success-subtle text-success border border-success-subtle small px-1.5 py-0.5">Latest Intake</span>' : ''}
+                            </div>
+                            <span class="badge bg-light text-secondary border small">
+                                <i class="bi bi-person-check-fill me-1 text-primary"></i> ${officerPart}
+                            </span>
+                        </div>
+                        <div class="card-body p-3 bg-white">
+                            <div class="d-flex flex-column">
+                                ${itemsHtml}
+                            </div>
+                        </div>
+                    `;
+                    timelineContainer.appendChild(batchCard);
+                });
+            } else {
+                // Legacy Discrepancy or Plain Text handling
+                if (batchCountBadge) {
+                    batchCountBadge.className = 'badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1';
+                    batchCountBadge.innerText = 'Legacy Discrepancy Log';
+                }
+
+                const legacyParts = rawText.split(/\[DELIVERY DISCREPANCY\]:/i).filter(p => p.trim().length > 0);
+                if (legacyParts.length > 0) {
+                    legacyParts.forEach((part, idx) => {
+                        const card = document.createElement('div');
+                        card.className = 'card border-0 shadow-sm rounded-3 overflow-hidden mb-2';
+                        card.innerHTML = `
+                            <div class="card-header bg-danger-subtle text-danger border-bottom border-danger-subtle py-2 px-3 fw-bold small">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Discrepancy Record #${idx + 1}
+                            </div>
+                            <div class="card-body p-3 bg-white text-dark" style="font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">${part.trim()}</div>
+                        `;
+                        timelineContainer.appendChild(card);
+                    });
+                } else {
+                    const card = document.createElement('div');
+                    card.className = 'card border-0 shadow-sm rounded-3 overflow-hidden';
+                    card.innerHTML = `
+                        <div class="card-body p-3 bg-white text-dark" style="font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">${rawText}</div>
+                    `;
+                    timelineContainer.appendChild(card);
+                }
+            }
+        }
+
+        // 5. Proof of Receipt File Link
         let proofPath = btnElem.getAttribute('data-proof');
         if (proofPath && proofPath.includes('uploads/receipts/')) {
             const filename = proofPath.split('/').pop();
@@ -951,9 +1195,21 @@ include 'layout/header.php';
             if (proofPath && proofPath.trim() !== '') {
                 proofContainer.classList.remove('d-none');
                 proofContainer.innerHTML = `
-                    <div class="alert alert-info py-2 px-3 mb-0 d-flex justify-content-between align-items-center">
-                        <span class="small fw-bold"><i class="bi bi-paperclip me-1"></i> Proof of Receipt Attached</span>
-                        <a href="${proofPath}" onclick="event.preventDefault(); window.openPhotoWindow('${proofPath}');" class="btn btn-sm btn-info text-white fw-bold"><i class="bi bi-box-arrow-up-right me-1"></i> View Receipt File</a>
+                    <div class="card border-0 shadow-sm rounded-3 bg-white p-3 border-start border-4 border-info">
+                        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="p-2 bg-info-subtle text-info rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                    <i class="bi bi-paperclip fs-5"></i>
+                                </div>
+                                <div>
+                                    <span class="fw-bold text-dark d-block small">Proof of Receipt Attached</span>
+                                    <small class="text-muted">Delivery Order / Live Camera Physical Verification</small>
+                                </div>
+                            </div>
+                            <a href="${proofPath}" onclick="event.preventDefault(); window.openPhotoWindow('${proofPath}');" class="btn btn-sm btn-info text-white fw-bold shadow-sm px-3">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> View Attached Receipt
+                            </a>
+                        </div>
                     </div>
                 `;
             } else {
@@ -962,11 +1218,12 @@ include 'layout/header.php';
             }
         }
 
+        // Open Modal
         var myModalEl = document.getElementById('discrepancyModal');
         var discModal = bootstrap.Modal.getInstance(myModalEl);
         if (!discModal) discModal = new bootstrap.Modal(myModalEl);
         discModal.show();
-    }
+    };
 
     // ==========================================
     // CAMERA PHOTO CAPTURE LOGIC
