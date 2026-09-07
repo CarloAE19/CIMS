@@ -69,7 +69,7 @@ $pos = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate Stats
 $totalPO = count($pos);
-$pendingDelivery = count(array_filter($pos, fn($p) => in_array($p['status'], ['Generated', 'Viber Order Sent', 'Pending Delivery'])));
+$pendingDelivery = count(array_filter($pos, fn($p) => in_array($p['status'], ['Generated', 'Viber Order Sent', 'Pending Delivery', 'Partially Delivered', 'Partially Received'])));
 $delayedPO = count(array_filter($pos, fn($p) => strpos($p['status'], 'Delayed') !== false));
 
 // Fetch suppliers, officers, and projects list for filter dropdowns
@@ -405,6 +405,7 @@ include 'layout/header.php';
                                 <option value="Generated">Generated / Draft</option>
                                 <option value="Viber Order Sent">Viber Order Sent</option>
                                 <option value="Pending Delivery">Pending Delivery</option>
+                                <option value="Partially Delivered">Partially Delivered</option>
                                 <option value="Delivered">Delivered (Complete)</option>
                                 <option value="Delivered (Discrepancy)">Delivered (Discrepancy)</option>
                                 <option value="Delayed">Delayed (All Reasons)</option>
@@ -466,6 +467,9 @@ include 'layout/header.php';
                             if ($displayStatus === 'SMS Sent') {
                                 $displayStatus = 'Viber Order Sent';
                             }
+                            if ($displayStatus === 'Partially Received') {
+                                $displayStatus = 'Partially Delivered';
+                            }
                             $statusClass = 'bg-secondary';
                             if ($displayStatus === 'Generated')
                                 $statusClass = 'bg-info text-dark';
@@ -475,6 +479,8 @@ include 'layout/header.php';
                                 $statusClass = 'bg-warning text-dark';
                             if (strpos($displayStatus, 'Delayed') !== false)
                                 $statusClass = 'bg-danger';
+                            if ($displayStatus === 'Partially Delivered' || $displayStatus === 'Partially Received')
+                                $statusClass = 'bg-warning text-dark border border-warning shadow-sm';
                             if ($displayStatus === 'Delivered')
                                 $statusClass = 'bg-success';
                             if ($displayStatus === 'Delivered (Discrepancy)')
@@ -610,16 +616,20 @@ include 'layout/header.php';
                                         </a>
                                     <?php endif; ?>
 
-                                    <?php if (in_array($role, ['admin', 'management', 'purchasing']) && $po['status'] === 'Delivered (Discrepancy)'):
+                                    <?php if (in_array($role, ['admin', 'management', 'purchasing', 'warehouse']) && in_array($po['status'], ['Delivered (Discrepancy)', 'Partially Delivered', 'Partially Received'])):
                                         $receiptFile = !empty($po['proof_of_receipt']) ? basename($po['proof_of_receipt']) : '';
                                         $secureReceiptUrl = $receiptFile ? ('secure-image?type=receipts&file=' . urlencode($receiptFile)) : '';
+                                        $isPartial = in_array($po['status'], ['Partially Delivered', 'Partially Received']);
+                                        $btnClass = $isPartial ? 'btn-outline-warning text-dark' : 'btn-danger';
+                                        $btnIcon = $isPartial ? 'bi-clock-history' : 'bi-search';
+                                        $btnText = $isPartial ? 'Delivery Log' : 'View Issue';
                                         ?>
-                                        <!-- VIEW DISCREPANCY BUTTON -->
-                                        <button type="button" class="btn btn-sm btn-danger fw-bold shadow-sm me-1"
-                                            title="View Discrepancy" data-pono="<?= htmlspecialchars($po['po_no']) ?>"
-                                            data-remarks="<?= htmlspecialchars($po['delay_remarks'] ?? 'No remarks provided.') ?>"
+                                        <!-- VIEW DISCREPANCY / DELIVERY LOG BUTTON -->
+                                        <button type="button" class="btn btn-sm <?= $btnClass ?> fw-bold shadow-sm me-1"
+                                            title="View Delivery History & Remarks" data-pono="<?= htmlspecialchars($po['po_no']) ?>"
+                                            data-remarks="<?= htmlspecialchars($po['delay_remarks'] ?? 'No delivery remarks logged yet.') ?>"
                                             data-proof="<?= htmlspecialchars($secureReceiptUrl) ?>" onclick="viewDiscrepancy(this)">
-                                            <i class="bi bi-search"></i> <span class="ms-1">View Issue</span>
+                                            <i class="bi <?= $btnIcon ?>"></i> <span class="ms-1"><?= $btnText ?></span>
                                         </button>
                                     <?php endif; ?>
 
@@ -734,7 +744,7 @@ include 'layout/header.php';
         }
 
         const tbody = document.getElementById('receiveItemsBody');
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><div class="spinner-border text-success spinner-border-sm me-2"></div> Fetching Manifest...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><div class="spinner-border text-success spinner-border-sm me-2"></div> Fetching Manifest...</td></tr>';
 
         var myModalEl = document.getElementById('receiveModal');
         var receiveModal = bootstrap.Modal.getInstance(myModalEl);
@@ -755,7 +765,7 @@ include 'layout/header.php';
             if (data.status === 'success') {
                 tbody.innerHTML = '';
                 if (data.items.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No items linked to this manifest.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No items linked to this manifest.</td></tr>';
                     document.getElementById('confirmReceiveBtn').disabled = true;
                     return;
                 }
@@ -765,49 +775,135 @@ include 'layout/header.php';
                 data.items.forEach(item => {
                     const tr = document.createElement('tr');
                     const initialPrice = parseFloat(item.unit_price || 0).toFixed(2);
-                    const initialQty = parseInt(item.expected_qty || 0);
-                    const initialSubtotal = (initialQty * parseFloat(initialPrice)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const orderedQty = parseInt(item.ordered_qty || item.expected_qty || 0);
+                    const receivedQty = parseInt(item.received_quantity || 0);
+                    const remainingQty = parseInt(item.remaining_qty !== undefined ? item.remaining_qty : (orderedQty - receivedQty));
+                    const isAlreadyCompleted = (remainingQty <= 0);
+                    const defaultReceiveToday = isAlreadyCompleted ? 0 : remainingQty;
+                    const initialSubtotal = (defaultReceiveToday * parseFloat(initialPrice)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
                     tr.innerHTML = `
-                    <td class="fw-bold text-muted" style="font-size: 0.8rem;" data-label="Item Code">
-                        ${item.item_code}
-                        <input type="hidden" name="item_codes[]" value="${item.item_code}">
-                        <input type="hidden" name="expected_qtys[]" value="${item.expected_qty}">
-                    </td>
-                    <td class="fw-bold text-dark text-wrap" data-label="Item Name">${item.item_name}</td>
-                    <td class="text-center fw-bold text-primary fs-6" data-label="Expected Qty">${item.expected_qty}</td>
-                    <td class="text-center align-middle" data-label="Actual Received">
-                        <input type="number" name="actual_qtys[]" class="form-control form-control-sm text-center fw-bold text-success border-success shadow-sm ms-auto actual-qty-input" 
-                            style="max-width: 90px; font-size: 1rem; height: 35px;" value="${item.expected_qty}" min="0" onclick="this.select()" onfocus="this.select()" required>
-                    </td>
-                    <td class="text-center align-middle" data-label="Unit Price (₱)">
-                        <input type="number" step="0.01" name="unit_prices[]" class="form-control form-control-sm text-center fw-bold text-primary border-primary shadow-sm ms-auto unit-price-input" 
-                            style="max-width: 110px; font-size: 1rem; height: 35px;" value="${initialPrice}" min="0" onclick="this.select()" onfocus="this.select()" required>
-                    </td>
-                    <td class="text-end fw-bold text-dark align-middle subtotal-val" data-label="Subtotal">
-                        ₱${initialSubtotal}
-                    </td>
-                `;
+                        <td data-label="Item Description">
+                            <div class="fw-bold text-dark text-wrap">${item.item_name}</div>
+                            <span class="badge bg-light text-muted border font-monospace" style="font-size: 0.72rem;">${item.item_code}</span>
+                            <input type="hidden" name="item_codes[]" value="${item.item_code}">
+                            <input type="hidden" name="expected_qtys[]" value="${remainingQty}">
+                        </td>
+                        <td class="text-center fw-semibold text-secondary" data-label="Ordered">
+                            ${orderedQty} <small class="text-muted">${item.unit || ''}</small>
+                        </td>
+                        <td class="text-center fw-semibold text-info" data-label="Prior Recv">
+                            ${receivedQty}
+                        </td>
+                        <td class="text-center fw-bold ${remainingQty > 0 ? 'text-primary' : 'text-muted'}" data-label="Remaining">
+                            <span class="badge ${remainingQty > 0 ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-light text-muted'} px-2 py-1">${remainingQty}</span>
+                        </td>
+                        <td class="text-center align-middle" data-label="Receive Today">
+                            ${isAlreadyCompleted ? `
+                                <input type="number" name="actual_qtys[]" class="form-control form-control-sm text-center bg-light text-muted actual-qty-input" 
+                                    value="0" readonly style="max-width: 90px; font-size: 0.95rem; height: 35px; margin: 0 auto;">
+                            ` : `
+                                <input type="number" name="actual_qtys[]" class="form-control form-control-sm text-center fw-bold text-success border-success shadow-sm actual-qty-input" 
+                                    style="max-width: 90px; font-size: 1rem; height: 35px; margin: 0 auto;" value="${defaultReceiveToday}" min="0" max="${remainingQty}" data-remaining="${remainingQty}" onclick="this.select()" onfocus="this.select()" required>
+                            `}
+                        </td>
+                        <td class="text-center align-middle" data-label="Unit Price (₱)">
+                            <input type="number" step="0.01" name="unit_prices[]" class="form-control form-control-sm text-center fw-bold text-primary border-primary shadow-sm unit-price-input" 
+                                style="max-width: 105px; font-size: 0.95rem; height: 35px; margin: 0 auto;" value="${initialPrice}" min="0" onclick="this.select()" onfocus="this.select()" required>
+                        </td>
+                        <td class="text-center align-middle" data-label="Status / Remainder">
+                            <div class="disposition-wrapper">
+                                ${isAlreadyCompleted ? `
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-2 w-100" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i>Fulfilled</span>
+                                    <input type="hidden" name="item_dispositions[]" value="to_follow">
+                                ` : `
+                                    <div class="full-delivery-badge">
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-2 w-100" style="font-size: 0.75rem;"><i class="bi bi-check2-circle me-1"></i>Full Delivery</span>
+                                        <input type="hidden" name="item_dispositions[]" class="disposition-input" value="to_follow">
+                                    </div>
+                                    <div class="partial-delivery-select d-none">
+                                        <select class="form-select form-select-sm fw-bold border-warning shadow-sm disposition-dropdown" style="font-size: 0.78rem;">
+                                            <option value="to_follow" selected>🟡 To Follow (Supplier Pending)</option>
+                                            <option value="sold_out">🔴 Sold Out (Supplier Cancelled)</option>
+                                        </select>
+                                    </div>
+                                `}
+                            </div>
+                        </td>
+                        <td class="text-end fw-bold text-dark align-middle subtotal-val" data-label="Batch Subtotal">
+                            ₱${initialSubtotal}
+                        </td>
+                    `;
                     tbody.appendChild(tr);
 
                     const qtyInput = tr.querySelector('.actual-qty-input');
                     const priceInput = tr.querySelector('.unit-price-input');
                     const subtotalTd = tr.querySelector('.subtotal-val');
+                    const fullBadge = tr.querySelector('.full-delivery-badge');
+                    const partialSelect = tr.querySelector('.partial-delivery-select');
+                    const dispInput = tr.querySelector('.disposition-input');
+                    const dispSelect = tr.querySelector('.disposition-dropdown');
 
-                    const updateSubtotal = () => {
-                        const q = parseFloat(qtyInput.value) || 0;
+                    const updateRowState = () => {
+                        let q = parseInt(qtyInput.value) || 0;
+                        const maxQ = parseInt(qtyInput.getAttribute('data-remaining') || 0);
+
+                        if (q < 0) { q = 0; qtyInput.value = 0; }
+                        if (maxQ > 0 && q > maxQ) { 
+                            q = maxQ; 
+                            qtyInput.value = maxQ; 
+                        }
+
                         const p = parseFloat(priceInput.value) || 0;
                         subtotalTd.textContent = '₱' + (q * p).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                        if (!isAlreadyCompleted && fullBadge && partialSelect) {
+                            if (q >= maxQ) {
+                                fullBadge.classList.remove('d-none');
+                                partialSelect.classList.add('d-none');
+                                if (dispInput) {
+                                    dispInput.name = 'item_dispositions[]';
+                                    dispInput.value = 'to_follow';
+                                }
+                                if (dispSelect) dispSelect.removeAttribute('name');
+                            } else {
+                                fullBadge.classList.add('d-none');
+                                partialSelect.classList.remove('d-none');
+                                if (dispInput) dispInput.removeAttribute('name');
+                                if (dispSelect) {
+                                    dispSelect.name = 'item_dispositions[]';
+                                }
+                            }
+                        }
+                        updateGrandTotal();
                     };
 
-                    qtyInput.addEventListener('input', updateSubtotal);
-                    priceInput.addEventListener('input', updateSubtotal);
+                    if (qtyInput && !isAlreadyCompleted) {
+                        qtyInput.addEventListener('input', updateRowState);
+                    }
+                    if (priceInput) {
+                        priceInput.addEventListener('input', updateRowState);
+                    }
                 });
+
+                function updateGrandTotal() {
+                    let sum = 0;
+                    tbody.querySelectorAll('tr').forEach(r => {
+                        const q = parseFloat(r.querySelector('.actual-qty-input')?.value || 0);
+                        const p = parseFloat(r.querySelector('.unit-price-input')?.value || 0);
+                        sum += (q * p);
+                    });
+                    const batchTotalEl = document.getElementById('receiveBatchTotalVal');
+                    if (batchTotalEl) {
+                        batchTotalEl.textContent = '₱' + sum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    }
+                }
+                updateGrandTotal();
             } else {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">Error: ${data.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-3">Error: ${data.message}</td></tr>`;
             }
         } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">Network Error: Could not load the manifest.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-3">Network Error: Could not load the manifest.</td></tr>`;
         }
     }
 
@@ -989,12 +1085,197 @@ include 'layout/header.php';
 
     document.addEventListener('DOMContentLoaded', function () {
         const receiveModalEl = document.getElementById('receiveModal');
+        const receiveForm = document.getElementById('receiveForm');
+
         if (receiveModalEl) {
-            receiveModalEl.addEventListener('hide.bs.modal', function () {
-                window.stopReceiptCamera();
+            // Accessibility: Auto-focus the first editable quantity field
+            receiveModalEl.addEventListener('shown.bs.modal', function () {
+                const firstQty = receiveModalEl.querySelector('.actual-qty-input:not([readonly])');
+                if (firstQty) {
+                    firstQty.focus();
+                    firstQty.select();
+                }
             });
+
+            // Modal Lifecycle: Graceful camera cleanup and state teardown
+            receiveModalEl.addEventListener('hide.bs.modal', function () {
+                if (typeof window.stopReceiptCamera === 'function') {
+                    window.stopReceiptCamera();
+                }
+            });
+
             receiveModalEl.addEventListener('hidden.bs.modal', function () {
-                window.stopReceiptCamera();
+                if (typeof window.stopReceiptCamera === 'function') {
+                    window.stopReceiptCamera();
+                }
+                const fileInput = document.getElementById('proofOfReceiptFileInput');
+                if (fileInput) fileInput.value = '';
+                const base64Input = document.getElementById('capturedProofBase64');
+                if (base64Input) base64Input.value = '';
+                const previewImg = document.getElementById('receiptPhotoPreview');
+                if (previewImg) {
+                    previewImg.src = '';
+                    previewImg.classList.add('d-none');
+                }
+                const retakeBtn = document.getElementById('retakeReceiptPhotoBtn');
+                if (retakeBtn) retakeBtn.classList.add('d-none');
+            });
+        }
+
+        // Standard AJAX Modal Submission Pattern (cims-modal-ajax-handler & quality-standards)
+        if (receiveForm) {
+            receiveForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                // 1. Client-side form validity check
+                if (!receiveForm.checkValidity()) {
+                    receiveForm.reportValidity();
+                    return;
+                }
+
+                const tbody = document.getElementById('receiveItemsBody');
+                const qtyInputs = tbody ? tbody.querySelectorAll('.actual-qty-input') : [];
+                if (!tbody || qtyInputs.length === 0) {
+                    const msg = 'No manifest items found to receive.';
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({ icon: 'warning', title: 'Empty Manifest', text: msg });
+                    } else {
+                        alert(msg);
+                    }
+                    return;
+                }
+
+                // Defensive check: non-negative and bounds validation
+                let totalBatchQty = 0;
+                let hasNegative = false;
+                let hasOverQty = false;
+
+                qtyInputs.forEach(input => {
+                    const val = parseInt(input.value) || 0;
+                    const max = parseInt(input.getAttribute('data-remaining') || input.getAttribute('max') || 0);
+                    if (val < 0) hasNegative = true;
+                    if (max > 0 && val > max) hasOverQty = true;
+                    totalBatchQty += val;
+                });
+
+                if (hasNegative) {
+                    const msg = 'Received quantities cannot be negative.';
+                    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Invalid Quantity', text: msg });
+                    else alert(msg);
+                    return;
+                }
+
+                if (hasOverQty) {
+                    const msg = 'One or more items exceed the maximum remaining quantity permitted.';
+                    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Quantity Exceeded', text: msg });
+                    else alert(msg);
+                    return;
+                }
+
+                // If 0 units received across entire shipment, confirm explicit user intent
+                if (totalBatchQty === 0) {
+                    if (typeof Swal !== 'undefined') {
+                        const confirmZero = await Swal.fire({
+                            icon: 'question',
+                            title: 'Zero Units Arrived?',
+                            text: 'You have entered 0 units received today for all items. Proceed only if recording non-delivery or supplier cancellation.',
+                            showCancelButton: true,
+                            confirmButtonText: 'Yes, Proceed',
+                            cancelButtonText: 'Cancel'
+                        });
+                        if (!confirmZero.isConfirmed) return;
+                    } else {
+                        if (!confirm('You entered 0 units received today. Proceed?')) return;
+                    }
+                }
+
+                // 2. Prevent duplicate submits & display loading state
+                const submitBtn = document.getElementById('confirmReceiveBtn');
+                const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '<i class="bi bi-check2-all me-1"></i>Confirm & Stock In';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Stocking In...';
+                }
+
+                const cancelBtns = receiveModalEl ? receiveModalEl.querySelectorAll('[data-bs-dismiss="modal"]') : [];
+                cancelBtns.forEach(btn => btn.disabled = true);
+
+                try {
+                    const formData = new FormData(receiveForm);
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    if (csrfToken && !formData.has('csrf_token')) {
+                        formData.append('csrf_token', csrfToken);
+                    }
+
+                    const response = await fetch('process/process.php', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                            'X-CSRF-Token': csrfToken
+                        }
+                    });
+
+                    const rawText = await response.text();
+                    let result = null;
+                    try {
+                        result = JSON.parse(rawText);
+                    } catch (jsonErr) {
+                        console.error('Non-JSON server response:', rawText);
+                        throw new Error('Server returned an unexpected response. Please try again.');
+                    }
+
+                    const isSuccess = result && (result.success === true || result.status === 'success');
+
+                    if (isSuccess) {
+                        // Stop camera if running
+                        if (typeof window.stopReceiptCamera === 'function') {
+                            window.stopReceiptCamera();
+                        }
+
+                        // Hide modal instance
+                        if (receiveModalEl) {
+                            const modalInstance = bootstrap.Modal.getInstance(receiveModalEl);
+                            if (modalInstance) modalInstance.hide();
+                        }
+
+                        // Success notification via SweetAlert2
+                        if (typeof Swal !== 'undefined') {
+                            await Swal.fire({
+                                icon: 'success',
+                                title: 'Stock In Recorded!',
+                                text: result.message || 'Delivery successfully processed and inventory updated.',
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+                        } else {
+                            alert(result.message || 'Delivery successfully processed.');
+                        }
+
+                        // Refresh table / page state
+                        window.location.reload();
+                    } else {
+                        throw new Error(result?.message || 'Failed to process Stock In.');
+                    }
+                } catch (error) {
+                    console.error('Stock In Error:', error);
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Stock In Failed',
+                            text: error.message || 'Failed to process delivery.'
+                        });
+                    } else {
+                        alert(error.message || 'Failed to process delivery.');
+                    }
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnHtml;
+                    }
+                    cancelBtns.forEach(btn => btn.disabled = false);
+                }
             });
         }
     });
@@ -1078,10 +1359,23 @@ include 'layout/header.php';
                 if (data.items && data.items.length > 0) {
                     data.items.forEach((item, index) => {
                         const tr = document.createElement('tr');
+                        const recvQty = parseInt(item.received_quantity || 0);
+                        const ordQty = parseInt(item.quantity || 0);
+                        let fulfillmentBadge = '';
+                        if (recvQty > 0 || item.item_status) {
+                            if (item.item_status === 'Complete' || recvQty >= ordQty) {
+                                fulfillmentBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle ms-2 py-0" style="font-size: 0.68rem;"><i class="bi bi-check2-circle me-1"></i>Delivered (${recvQty}/${ordQty})</span>`;
+                            } else if (item.item_status === 'Sold Out') {
+                                fulfillmentBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-2 py-0" style="font-size: 0.68rem;"><i class="bi bi-x-circle me-1"></i>Sold Out (${recvQty}/${ordQty})</span>`;
+                            } else {
+                                fulfillmentBadge = `<span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-2 py-0" style="font-size: 0.68rem;"><i class="bi bi-pie-chart-fill me-1"></i>Recv'd ${recvQty}/${ordQty} (${item.remaining_qty || (ordQty - recvQty)} to follow)</span>`;
+                            }
+                        }
+
                         tr.innerHTML = `
                             <td class="text-center font-monospace">${index + 1}</td>
                             <td class="fw-bold text-muted">${item.item_code}</td>
-                            <td class="fw-bold text-dark">${item.item_name} <span class="text-muted fw-normal">(${item.unit || 'units'})</span></td>
+                            <td class="fw-bold text-dark">${item.item_name} <span class="text-muted fw-normal">(${item.unit || 'units'})</span> ${fulfillmentBadge}</td>
                             <td class="text-center fw-bold text-primary">${item.quantity}</td>
                             <td class="text-end">₱${parseFloat(item.unit_price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             <td class="text-end fw-bold">₱${parseFloat(item.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -1373,7 +1667,7 @@ include 'layout/header.php';
             // KPI Stat Tile Filter
             let matchesTileStatus = true;
             if (currentPoTileFilter === 'pending') {
-                matchesTileStatus = ['Generated', 'Viber Order Sent', 'Pending Delivery'].includes(rowStatus);
+                matchesTileStatus = ['Generated', 'Viber Order Sent', 'Pending Delivery', 'Partially Delivered', 'Partially Received'].includes(rowStatus);
             } else if (currentPoTileFilter === 'delayed') {
                 matchesTileStatus = rowStatus.includes('Delayed');
             }
@@ -1391,6 +1685,8 @@ include 'layout/header.php';
             let matchesStatus = true;
             if (statusVal === 'Delayed') {
                 matchesStatus = rowStatus.includes('Delayed');
+            } else if (statusVal === 'Partially Delivered' || statusVal === 'Partially Received') {
+                matchesStatus = (rowStatus === 'Partially Delivered' || rowStatus === 'Partially Received');
             } else if (statusVal !== 'all') {
                 matchesStatus = (rowStatus === statusVal);
             }

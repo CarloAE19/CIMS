@@ -42,6 +42,9 @@ $approvedRS = $pdo->query("
             <form method="POST" action="process/process.php" id="createPoForm">
                 <!-- Added p-4 for premium spacing -->
                 <div class="modal-body bg-light p-4">
+                    <?php if (function_exists('generate_csrf_token')): ?>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
+                    <?php endif; ?>
                     <input type="hidden" name="action" value="create_po">
 
                     <div class="mb-4">
@@ -161,6 +164,9 @@ $approvedRS = $pdo->query("
             </div>
             <form method="POST" action="process/process.php" id="delayForm">
                 <div class="modal-body p-4 bg-light">
+                    <?php if (function_exists('generate_csrf_token')): ?>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
+                    <?php endif; ?>
                     <input type="hidden" name="action" value="log_po_delay">
                     <input type="hidden" name="po_id" id="delayPoId">
                     <input type="hidden" name="po_no" id="delayPoNo">
@@ -213,25 +219,34 @@ $approvedRS = $pdo->query("
   3. MODAL: RECEIVE PO / VERIFY DISCREPANCY
 =========================================== -->
 <div class="modal fade" id="receiveModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow-lg border-top border-success border-4">
             <div class="modal-header bg-white">
-                <h5 class="modal-title text-success fw-bold"><i class="bi bi-box-seam me-2"></i>Verify Stock In
-                    (Delivery Receipt)</h5>
+                <div>
+                    <h5 class="modal-title text-success fw-bold mb-0">
+                        <i class="bi bi-box-seam me-2"></i>Verify Stock In & Delivery Manifest
+                    </h5>
+                    <small class="text-muted">Multi-Stage & Partial Delivery Supported</small>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"
                     onclick="if(typeof stopReceiptCamera==='function') stopReceiptCamera();"></button>
             </div>
             <form method="POST" action="process/process.php" id="receiveForm" enctype="multipart/form-data">
-                <div class="modal-body p-4 bg-light">
+                <div class="modal-body p-3 p-md-4 bg-light">
+                    <?php if (function_exists('generate_csrf_token')): ?>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
+                    <?php endif; ?>
                     <input type="hidden" name="action" value="mark_po_delivered">
                     <input type="hidden" name="po_id" id="receivePoId">
                     <input type="hidden" name="po_no" id="receivePoNo">
 
-                    <div class="alert alert-warning px-3 py-2 mb-3 shadow-sm"
-                        style="font-size: 0.85rem; border-left: 3px solid #ffc107;">
-                        <i class="bi bi-exclamation-circle-fill me-1"></i> <strong>Attention:</strong> Count items &
-                        verify unit prices against the delivery receipt/invoice. Stock-in will automatically update item
-                        prices and <strong>Total Inventory Value</strong>.
+                    <!-- Info Alert Explaining Partial Deliveries -->
+                    <div class="alert alert-info border-0 shadow-sm mb-3 d-flex align-items-center py-2 px-3 rounded-3"
+                        style="font-size: 0.85rem; background-color: #e8f4fd; color: #0d47a1;">
+                        <i class="bi bi-info-circle-fill fs-5 me-2 flex-shrink-0 text-primary"></i>
+                        <div>
+                            <strong>Multi-Stage Delivery:</strong> Enter the quantity physically arriving in this shipment. If fewer units arrive, choose whether the remainder is <strong>To Follow</strong> (supplier has pending stock, keeps PO open) or <strong>Sold Out</strong> (supplier cancelled). Master Inventory only increments by the units received today.
+                        </div>
                     </div>
 
                     <div class="card border-0 shadow-sm bg-white mb-3 p-3">
@@ -317,21 +332,30 @@ $approvedRS = $pdo->query("
                         </div>
                     </div>
 
+                    <!-- Manifest Table -->
                     <div class="table-responsive border rounded shadow-sm bg-white mb-2">
                         <table class="table table-hover align-middle mb-0 text-nowrap" id="receiveItemsTable">
                             <thead class="table-light text-muted" style="font-size: 0.8rem;">
                                 <tr>
-                                    <th>Item Code</th>
-                                    <th>Item Name</th>
-                                    <th class="text-center">Expected Qty</th>
-                                    <th class="text-center" style="width: 130px;">Actual Received Qty</th>
-                                    <th class="text-center" style="width: 145px;">Unit Price (₱)</th>
-                                    <th class="text-end" style="width: 120px;">Subtotal (₱)</th>
+                                    <th style="min-width: 180px;">Item Description</th>
+                                    <th class="text-center" style="width: 75px;">Ordered</th>
+                                    <th class="text-center" style="width: 75px;">Prior Recv</th>
+                                    <th class="text-center" style="width: 80px;">Remaining</th>
+                                    <th class="text-center" style="width: 110px;">Receive Today</th>
+                                    <th class="text-center" style="width: 120px;">Unit Price (₱)</th>
+                                    <th class="text-center" style="min-width: 200px;">Supplier Status / If Incomplete</th>
+                                    <th class="text-end" style="width: 110px;">Batch Subtotal</th>
                                 </tr>
                             </thead>
                             <tbody id="receiveItemsBody">
                                 <!-- Populated dynamically -->
                             </tbody>
+                            <tfoot class="table-light border-top">
+                                <tr>
+                                    <td colspan="7" class="text-end fw-bold text-muted text-uppercase small py-2">Batch Delivery Total:</td>
+                                    <td class="text-end fw-bold text-success fs-6 py-2" id="receiveBatchTotalVal">₱0.00</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -491,6 +515,9 @@ $approvedRS = $pdo->query("
             </div>
             <form id="editEtaForm" onsubmit="handleUpdatePoEta(event)">
                 <div class="modal-body bg-light p-4">
+                    <?php if (function_exists('generate_csrf_token')): ?>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
+                    <?php endif; ?>
                     <input type="hidden" id="editEtaPoId" name="po_id" value="">
 
                     <div class="mb-3">
@@ -741,13 +768,16 @@ $approvedRS = $pdo->query("
         const poId = document.getElementById('editEtaPoId').value;
         const etaDate = document.getElementById('editEtaInputDate').value;
 
-        const formData = new FormData();
+        const formData = new FormData(form);
         formData.append('action', 'update_po_eta');
         formData.append('po_id', poId);
         formData.append('expected_delivery_date', etaDate);
 
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        };
         if (csrfToken) {
             headers['X-CSRF-Token'] = csrfToken;
         }
@@ -758,7 +788,7 @@ $approvedRS = $pdo->query("
             headers: headers
         })
             .then(res => res.json())
-            .then(data => {
+            .then(async data => {
                 const isSuccess = data.status === 'success' || data.success === true || (data.status && data.status.toLowerCase() === 'ok');
                 if (isSuccess) {
                     var myModalEl = document.getElementById('editEtaModal');
@@ -767,10 +797,26 @@ $approvedRS = $pdo->query("
 
                     if (typeof loadCombinedAlerts === 'function') loadCombinedAlerts();
 
-                    // Reload or update DOM
+                    if (typeof Swal !== 'undefined') {
+                        await Swal.fire({
+                            icon: 'success',
+                            title: 'ETA Updated!',
+                            text: data.message || 'Warehouse ETA has been successfully updated.',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    }
                     location.reload();
                 } else {
-                    alert(data.message || 'Failed to update ETA');
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Update Failed',
+                            text: data.message || 'Failed to update ETA.'
+                        });
+                    } else {
+                        alert(data.message || 'Failed to update ETA');
+                    }
                     if (submitBtn) {
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = originalText;
@@ -779,7 +825,15 @@ $approvedRS = $pdo->query("
             })
             .catch(err => {
                 console.error('Error updating ETA:', err);
-                alert('An error occurred while updating ETA.');
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Network Error',
+                        text: 'An error occurred while updating ETA.'
+                    });
+                } else {
+                    alert('An error occurred while updating ETA.');
+                }
                 if (submitBtn) {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
@@ -850,22 +904,7 @@ $approvedRS = $pdo->query("
             });
         }
 
-        // 3. Receive / Stock In Form
-        const receiveForm = document.getElementById('receiveForm');
-        if (receiveForm) {
-            receiveForm.addEventListener('submit', function (e) {
-                if (!this.checkValidity()) {
-                    this.reportValidity();
-                    e.preventDefault();
-                    return;
-                }
-                const submitBtn = document.getElementById('confirmReceiveBtn');
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Processing Stock In...';
-                }
-            });
-        }
+        // (Note: Receive / Stock In Form submission is managed via full AJAX handler in po.php per cims-modal-ajax-handler)
 
         // Modal Lifecycle Event Listeners (Autofocus & Form Cleanup)
         const poModal = document.getElementById('poModal');

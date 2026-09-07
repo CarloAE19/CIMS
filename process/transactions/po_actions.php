@@ -69,6 +69,9 @@ if ($action === 'fetch_supplier_delivery_history') {
             $classification = 'good';
             $goodDeliveries++;
             $totalDelivered++;
+        } elseif (in_array($po['status'], ['Partially Delivered', 'Partially Received'])) {
+            $classification = 'partial';
+            $pending++;
         } elseif (strpos($po['status'], 'Delayed') !== false) {
             $classification = 'delayed';
             $delayed++;
@@ -109,10 +112,26 @@ elseif ($action === 'fetch_po_items') {
         exit;
     }
 
-    $po_id = $_POST['po_id'] ?? 0;
+    $po_id = (int)($_POST['po_id'] ?? 0);
+
+    // Fetch PO status and metadata
+    $poMetaStmt = $pdo->prepare("SELECT po_no, status, delay_remarks FROM purchase_orders WHERE id = ?");
+    $poMetaStmt->execute([$po_id]);
+    $poMeta = $poMetaStmt->fetch(PDO::FETCH_ASSOC);
 
     $stmt = $pdo->prepare("
-        SELECT pi.item_code, pi.quantity as expected_qty, COALESCE(pi.unit_price, i.unit_price, 0) as unit_price, COALESCE(i.item_name, pi.custom_item_name, pi.item_code) as item_name, pi.is_new_item, pi.category, pi.unit 
+        SELECT 
+            pi.item_code, 
+            pi.quantity AS ordered_qty,
+            pi.quantity AS expected_qty,
+            COALESCE(pi.received_quantity, 0) AS received_qty,
+            GREATEST(0, pi.quantity - COALESCE(pi.received_quantity, 0)) AS remaining_qty,
+            COALESCE(pi.item_status, 'Pending') AS item_status,
+            COALESCE(pi.unit_price, i.unit_price, 0) AS unit_price, 
+            COALESCE(i.item_name, pi.custom_item_name, pi.item_code) AS item_name, 
+            pi.is_new_item, 
+            pi.category, 
+            COALESCE(i.unit, pi.unit, 'pcs') AS unit 
         FROM po_items pi 
         LEFT JOIN inventory i ON pi.item_code = i.item_code 
         WHERE pi.po_id = ?
@@ -120,7 +139,11 @@ elseif ($action === 'fetch_po_items') {
     $stmt->execute([$po_id]);
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    echo json_encode(['status' => 'success', 'items' => $items]);
+    echo json_encode([
+        'status' => 'success', 
+        'po' => $poMeta,
+        'items' => $items
+    ]);
     exit;
 }
 
@@ -206,6 +229,10 @@ elseif ($action === 'fetch_po_details') {
         SELECT 
             pi.item_code, 
             pi.quantity, 
+            pi.quantity AS ordered_qty,
+            COALESCE(pi.received_quantity, 0) AS received_quantity,
+            GREATEST(0, pi.quantity - COALESCE(pi.received_quantity, 0)) AS remaining_qty,
+            COALESCE(pi.item_status, 'Pending') AS item_status,
             pi.unit_price, 
             COALESCE(i.item_name, pi.custom_item_name, pi.item_code) as item_name, 
             COALESCE(i.unit, pi.unit, 'pcs') as unit,
@@ -239,6 +266,11 @@ elseif ($action === 'fetch_po_details') {
 elseif ($action === 'create_po') {
     if (!in_array($_SESSION['user_role'], ['purchasing', 'admin'])) {
         throw new Exception("Unauthorized action.");
+    }
+
+    $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!empty($csrfToken) && function_exists('validate_csrf_token') && !validate_csrf_token($csrfToken)) {
+        throw new Exception("Security token invalid or expired. Please refresh the page.");
     }
 
     $po_no = $_POST['po_no'];
@@ -341,23 +373,43 @@ elseif ($action === 'create_po') {
     }
 }
 
-// --- MARK PO DELIVERED / STOCK IN ---
+// --- MARK PO DELIVERED / STOCK IN (MULTI-STAGE & PARTIAL DELIVERY SUPPORT) ---
 elseif ($action === 'mark_po_delivered') {
     if (!in_array($_SESSION['user_role'], ['warehouse', 'admin', 'purchasing'])) {
         throw new Exception("Unauthorized.");
     }
 
-    $po_id = $_POST['po_id'];
-    $po_no = $_POST['po_no'];
-    $received_by = $_SESSION['user_id'];
+    // Verify CSRF Token (Rule 5 & Skill standard)
+    $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!empty($csrfToken) && function_exists('validate_csrf_token') && !validate_csrf_token($csrfToken)) {
+        throw new Exception("Security token invalid or expired. Please refresh the page.");
+    }
+
+    $po_id = (int)($_POST['po_id'] ?? 0);
+    $po_no = trim($_POST['po_no'] ?? '');
+    $received_by = (int)$_SESSION['user_id'];
 
     $item_codes = $_POST['item_codes'] ?? [];
     $actual_qtys = $_POST['actual_qtys'] ?? [];
     $expected_qtys = $_POST['expected_qtys'] ?? [];
     $unit_prices = $_POST['unit_prices'] ?? [];
+    $item_dispositions = $_POST['item_dispositions'] ?? [];
 
     try {
         $pdo->beginTransaction();
+
+        // Fetch existing PO record with row lock
+        $poCheckStmt = $pdo->prepare("SELECT id, po_no, status, delay_remarks, proof_of_receipt FROM purchase_orders WHERE id = ? FOR UPDATE");
+        $poCheckStmt->execute([$po_id]);
+        $poRecord = $poCheckStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$poRecord) {
+            throw new Exception("Purchase Order #{$po_id} not found.");
+        }
+
+        if (in_array($poRecord['status'], ['Delivered', 'Delivered (Discrepancy)'])) {
+            throw new Exception("Purchase Order {$poRecord['po_no']} has already been finalized and locked.");
+        }
 
         // Handle Proof of Receipt File Upload or Live Camera Snapshot (5-Layer Defense)
         require_once __DIR__ . '/../../classes/SecureUploadHandler.php';
@@ -366,7 +418,7 @@ elseif ($action === 'mark_po_delivered') {
             $proofPath = SecureUploadHandler::validateAndSaveReceiptUpload(
                 $_FILES['proof_of_receipt'],
                 'receipts',
-                'receipt_' . (int)$po_id
+                'receipt_' . $po_id . '_' . time()
             );
         }
 
@@ -375,7 +427,7 @@ elseif ($action === 'mark_po_delivered') {
             $proofPath = SecureUploadHandler::validateAndSaveBase64Image(
                 $_POST['captured_proof_base64'],
                 'receipts',
-                'camera_receipt_' . (int)$po_id
+                'camera_receipt_' . $po_id . '_' . time()
             );
         }
 
@@ -392,112 +444,224 @@ elseif ($action === 'mark_po_delivered') {
             WHERE i.item_code = ?
         ");
 
-        $updatePoItem = $pdo->prepare("UPDATE po_items SET unit_price = ? WHERE po_id = ? AND item_code = ?");
+        $updatePoItem = $pdo->prepare("
+            UPDATE po_items 
+            SET received_quantity = ?, 
+                item_status = ?, 
+                unit_price = CASE WHEN ? > 0 THEN ? ELSE unit_price END 
+            WHERE po_id = ? AND item_code = ?
+        ");
 
-        $discrepancyLog = "";
-        $hasDiscrepancy = false;
+        $fetchPoItemStmt = $pdo->prepare("
+            SELECT id, item_code, quantity, COALESCE(received_quantity, 0) AS received_quantity, 
+                   COALESCE(item_status, 'Pending') AS item_status, custom_item_name, category, unit, unit_price 
+            FROM po_items 
+            WHERE po_id = ? AND item_code = ? FOR UPDATE
+        ");
+
+        $batchLogs = [];
+        $totalBatchUnitsReceived = 0;
 
         for ($i = 0; $i < count($item_codes); $i++) {
-            $actual = (int)($actual_qtys[$i] ?? 0);
-            $expected = (int)($expected_qtys[$i] ?? 0);
-            $unit_price = (float)($unit_prices[$i] ?? 0);
             $code = $item_codes[$i];
+            $batchActual = max(0, (int)($actual_qtys[$i] ?? 0));
+            $unit_price = max(0, (float)($unit_prices[$i] ?? 0));
+            $disposition = trim($item_dispositions[$i] ?? 'to_follow');
 
-            if ($unit_price > 0) {
-                $updatePoItem->execute([$unit_price, $po_id, $code]);
+            $fetchPoItemStmt->execute([$po_id, $code]);
+            $poItemRow = $fetchPoItemStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$poItemRow) {
+                continue;
             }
 
-            // Check if item exists in master inventory with row lock
+            $orderedQty = (int)$poItemRow['quantity'];
+            $priorReceived = (int)$poItemRow['received_quantity'];
+            $maxCanReceiveNow = max(0, $orderedQty - $priorReceived);
+
+            // Cap the received amount to remaining needed
+            if ($batchActual > $maxCanReceiveNow) {
+                $batchActual = $maxCanReceiveNow;
+            }
+
+            $newTotalReceived = $priorReceived + $batchActual;
+            $totalBatchUnitsReceived += $batchActual;
+
+            // Determine item status
+            if ($newTotalReceived >= $orderedQty) {
+                $newItemStatus = 'Complete';
+            } else {
+                if ($disposition === 'sold_out') {
+                    $newItemStatus = 'Sold Out';
+                } else {
+                    $newItemStatus = 'Partially Delivered';
+                }
+            }
+
+            // Update po_items line
+            $updatePoItem->execute([$newTotalReceived, $newItemStatus, $unit_price, $unit_price, $po_id, $code]);
+
+            // Check Master Inventory record
             $checkInv = $pdo->prepare("SELECT id, item_name, unit FROM inventory WHERE item_code = ? FOR UPDATE");
             $checkInv->execute([$code]);
             $existingInv = $checkInv->fetch(PDO::FETCH_ASSOC);
 
             if (!$existingInv) {
                 // Uncataloged / New Item: Auto-insert into Master Inventory upon Stock-In
-                $poMetaStmt = $pdo->prepare("SELECT custom_item_name, category, unit FROM po_items WHERE po_id = ? AND item_code = ?");
-                $poMetaStmt->execute([$po_id, $code]);
-                $poMeta = $poMetaStmt->fetch(PDO::FETCH_ASSOC);
-
-                $itemName = !empty($poMeta['custom_item_name']) ? $poMeta['custom_item_name'] : ('New Item ' . $code);
-                $cat = !empty($poMeta['category']) ? $poMeta['category'] : 'Materials';
-                $unit = !empty($poMeta['unit']) ? $poMeta['unit'] : 'pcs';
+                $itemName = !empty($poItemRow['custom_item_name']) ? $poItemRow['custom_item_name'] : ('Item ' . $code);
+                $cat = !empty($poItemRow['category']) ? $poItemRow['category'] : 'Materials';
+                $unit = !empty($poItemRow['unit']) ? $poItemRow['unit'] : 'pcs';
 
                 $reorderStmt = $pdo->prepare("SELECT reorder_level FROM units WHERE unit_name = ?");
                 $reorderStmt->execute([$unit]);
                 $reorderLevel = (int)($reorderStmt->fetchColumn() ?: 10);
 
-                $newStatus = ($actual <= 0) ? 'Out of Stock' : (($actual <= $reorderLevel) ? 'Low Stock' : 'In Stock');
+                $newStatus = ($batchActual <= 0) ? 'Out of Stock' : (($batchActual <= $reorderLevel) ? 'Low Stock' : 'In Stock');
 
                 $insertInv = $pdo->prepare("
                     INSERT INTO inventory (item_code, item_name, category, quantity, unit, unit_price, status) 
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ");
-                $insertInv->execute([$code, $itemName, $cat, $actual, $unit, $unit_price, $newStatus]);
+                $insertInv->execute([$code, $itemName, $cat, $batchActual, $unit, $unit_price, $newStatus]);
             } else {
                 $itemName = $existingInv['item_name'];
-                if ($actual > 0) {
-                    $updateInv->execute([$actual, $unit_price, $unit_price, $actual, $actual, $code]);
+                if ($batchActual > 0) {
+                    $updateInv->execute([$batchActual, $unit_price, $unit_price, $batchActual, $batchActual, $code]);
                 }
             }
 
-            if ($actual != $expected) {
-                $hasDiscrepancy = true;
-                $soldOutNote = ($actual == 0) ? " ⚠️ [UNSUPPLIED / SOLD OUT]" : "";
-                $discrepancyLog .= "\n- {$itemName} [Code: {$code}]: Expected {$expected}, Received {$actual}{$soldOutNote}";
-                if ($unit_price > 0 && $actual > 0) {
-                    $discrepancyLog .= " (Unit Price: ₱" . number_format($unit_price, 2) . ")";
+            // Format line-item batch log
+            $itemLogLine = "- {$itemName} [Code: {$code}]: Received {$batchActual} units today (Total: {$newTotalReceived}/{$orderedQty})";
+            if ($unit_price > 0) {
+                $itemLogLine .= " @ ₱" . number_format($unit_price, 2);
+            }
+            if ($newItemStatus === 'Complete') {
+                $itemLogLine .= " ✅ [COMPLETE]";
+            } elseif ($newItemStatus === 'Sold Out') {
+                $unsupplied = $orderedQty - $newTotalReceived;
+                $itemLogLine .= " ⚠️ [SOLD OUT - {$unsupplied} Remainder Cancelled by Supplier]";
+            } else {
+                $remaining = $orderedQty - $newTotalReceived;
+                $itemLogLine .= " ⏳ [{$remaining} Remainder To Follow from Supplier]";
+            }
+            $batchLogs[] = $itemLogLine;
+        }
+
+        // Evaluate overall PO Status based on all line items
+        $allItemsStmt = $pdo->prepare("SELECT quantity, received_quantity, item_status FROM po_items WHERE po_id = ?");
+        $allItemsStmt->execute([$po_id]);
+        $allItems = $allItemsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $hasIncompleteToFollow = false;
+        $hasSoldOut = false;
+        $allComplete = true;
+
+        foreach ($allItems as $it) {
+            $o = (int)$it['quantity'];
+            $r = (int)$it['received_quantity'];
+            $st = $it['item_status'];
+
+            if ($r < $o) {
+                $allComplete = false;
+                if ($st === 'Sold Out') {
+                    $hasSoldOut = true;
+                } else {
+                    $hasIncompleteToFollow = true;
                 }
             }
         }
 
-        if ($hasDiscrepancy) {
-            $cleanDesc = trim($discrepancyLog);
+        if ($allComplete) {
+            $finalPoStatus = 'Delivered';
+        } elseif ($hasIncompleteToFollow) {
+            $finalPoStatus = 'Partially Delivered';
+        } else {
+            // All remaining unsupplied items were marked Sold Out
+            $finalPoStatus = 'Delivered (Discrepancy)';
+        }
 
-            // Fetch existing remarks and strip previous discrepancy blocks to prevent duplicate appends
-            $existingRemarksStmt = $pdo->prepare("SELECT delay_remarks FROM purchase_orders WHERE id = ?");
-            $existingRemarksStmt->execute([$po_id]);
-            $existingRemarks = $existingRemarksStmt->fetchColumn() ?: '';
+        // Retrieve receiver's full name
+        $userStmt = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+        $userStmt->execute([$received_by]);
+        $receiverName = $userStmt->fetchColumn() ?: 'Warehouse Officer';
 
-            if (strpos($existingRemarks, '[DELIVERY DISCREPANCY]:') !== false) {
-                $existingRemarks = preg_replace('/\[DELIVERY DISCREPANCY\]:.*$/s', '', $existingRemarks);
-                $existingRemarks = trim($existingRemarks);
-            }
+        // Build Audit / Delivery remarks entry
+        $timestampStr = date('M d, Y g:i A');
+        $batchHeader = "[DELIVERY BATCH — {$timestampStr} by {$receiverName}]:\n" . implode("\n", $batchLogs);
 
-            $newRemarks = !empty($existingRemarks) 
-                ? $existingRemarks . "\n\n[DELIVERY DISCREPANCY]:\n" . $cleanDesc
-                : "[DELIVERY DISCREPANCY]:\n" . $cleanDesc;
+        $existingRemarks = trim($poRecord['delay_remarks'] ?? '');
+        $combinedRemarks = !empty($existingRemarks) 
+            ? $existingRemarks . "\n\n" . $batchHeader
+            : $batchHeader;
 
-            $pdo->prepare("UPDATE purchase_orders SET status = 'Delivered (Discrepancy)', delay_remarks = ?, proof_of_receipt = COALESCE(?, proof_of_receipt), received_by = ? WHERE id = ?")
-                ->execute([$newRemarks, $proofPath, $received_by, $po_id]);
+        // Update purchase order header
+        $pdo->prepare("
+            UPDATE purchase_orders 
+            SET status = ?, 
+                delay_remarks = ?, 
+                proof_of_receipt = COALESCE(?, proof_of_receipt), 
+                received_by = ? 
+            WHERE id = ?
+        ")->execute([$finalPoStatus, $combinedRemarks, $proofPath, $received_by, $po_id]);
 
-            $alertMsg = "DISCREPANCY ALERT for {$po_no}: Order arrived physically with missing or excess items!{$discrepancyLog}";
-            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('purchasing', 'PO Discrepancy Found', ?)")->execute([$alertMsg]);
-            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('management', 'PO Receiving Discrepancy', ?)")->execute([$alertMsg]);
-            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('admin', 'PO Discrepancy Alert', ?)")->execute([$alertMsg]);
+        // Send role-based notifications & alerts
+        if ($finalPoStatus === 'Delivered') {
+            $alertMsg = "Order {$po_no} has arrived 100% COMPLETE. All ordered items have been verified and stocked into Master Inventory.";
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('purchasing', 'PO Fully Delivered', ?)")->execute([$alertMsg]);
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('management', 'PO Fully Delivered', ?)")->execute([$alertMsg]);
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('admin', 'PO Fully Delivered', ?)")->execute([$alertMsg]);
 
-            sendPushNotification($pdo, 'PO Discrepancy Found', $alertMsg, 'management', null);
-            sendPushNotification($pdo, 'PO Discrepancy Found', $alertMsg, 'purchasing', null);
-            sendPushNotification($pdo, 'PO Discrepancy Found', $alertMsg, 'admin', null);
+            sendPushNotification($pdo, 'PO Fully Delivered', $alertMsg, 'purchasing', null);
+            sendPushNotification($pdo, 'PO Fully Delivered', $alertMsg, 'management', null);
+            sendPushNotification($pdo, 'PO Fully Delivered', $alertMsg, 'admin', null);
 
-            $_SESSION['message'] = "Stock In partial/discrepancy recorded! Management has been notified of the mismatch.";
+            $_SESSION['message'] = "Stock In Successful! Purchase Order {$po_no} is 100% fulfilled and Master Inventory updated.";
+            $_SESSION['msg_type'] = "success";
+        } elseif (in_array($finalPoStatus, ['Partially Delivered', 'Partially Received'])) {
+            $alertMsg = "PARTIAL DELIVERY received for {$po_no}: {$totalBatchUnitsReceived} units physically stocked in. Remaining items are marked 'To Follow' from supplier.";
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('purchasing', 'PO Partially Delivered', ?)")->execute([$alertMsg]);
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('management', 'PO Partially Delivered', ?)")->execute([$alertMsg]);
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('admin', 'PO Partially Delivered', ?)")->execute([$alertMsg]);
+
+            sendPushNotification($pdo, 'PO Partially Delivered', $alertMsg, 'purchasing', null);
+            sendPushNotification($pdo, 'PO Partially Delivered', $alertMsg, 'management', null);
+            sendPushNotification($pdo, 'PO Partially Delivered', $alertMsg, 'admin', null);
+
+            $_SESSION['message'] = "Partial delivery recorded! {$totalBatchUnitsReceived} units stocked into Master Inventory. PO remains active for subsequent deliveries.";
             $_SESSION['msg_type'] = "warning";
         } else {
-            $pdo->prepare("UPDATE purchase_orders SET status = 'Delivered', proof_of_receipt = COALESCE(?, proof_of_receipt), received_by = ? WHERE id = ?")->execute([$proofPath, $received_by, $po_id]);
+            // Delivered (Discrepancy)
+            $alertMsg = "DELIVERY CLOSED (SOLD OUT / DISCREPANCY) for {$po_no}: Order finalized with unfulfilled items marked Sold Out by supplier.\n" . implode("\n", $batchLogs);
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('purchasing', 'PO Closed (Sold Out/Discrepancy)', ?)")->execute([$alertMsg]);
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('management', 'PO Closed (Sold Out/Discrepancy)', ?)")->execute([$alertMsg]);
+            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('admin', 'PO Closed (Sold Out/Discrepancy)', ?)")->execute([$alertMsg]);
 
-            $alertMsg = "Order {$po_no} has arrived complete. Exactly correct quantities and updated prices successfully STOCKED IN to Master Inventory.";
-            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('purchasing', 'PO Delivered & Verified', ?)")->execute([$alertMsg]);
-            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('management', 'PO Delivered & Verified', ?)")->execute([$alertMsg]);
-            $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('admin', 'PO Delivered & Verified', ?)")->execute([$alertMsg]);
+            sendPushNotification($pdo, 'PO Closed (Discrepancy)', $alertMsg, 'purchasing', null);
+            sendPushNotification($pdo, 'PO Closed (Discrepancy)', $alertMsg, 'management', null);
+            sendPushNotification($pdo, 'PO Closed (Discrepancy)', $alertMsg, 'admin', null);
 
-            sendPushNotification($pdo, 'PO Delivered & Verified', $alertMsg, 'purchasing', null);
-            sendPushNotification($pdo, 'PO Delivered & Verified', $alertMsg, 'management', null);
-            sendPushNotification($pdo, 'PO Delivered & Verified', $alertMsg, 'admin', null);
-
-            $_SESSION['message'] = "Stock In Successful! Delivered physical items and updated inventory value successfully saved.";
-            $_SESSION['msg_type'] = "success";
+            $_SESSION['message'] = "Delivery finalized. Unsupplied items recorded as Sold Out by supplier. Management and Purchasing alerted.";
+            $_SESSION['msg_type'] = "warning";
         }
 
         $pdo->commit();
+
+        // Standardized AJAX Response (cims-modal-ajax-handler Section 5)
+        if ((!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || 
+            (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => true,
+                'status' => 'success',
+                'message' => $_SESSION['message'],
+                'data' => [
+                    'po_id' => $po_id,
+                    'po_no' => $po_no,
+                    'status' => $finalPoStatus
+                ]
+            ]);
+            exit;
+        }
 
         header("Location: ../po");
         exit;
@@ -513,6 +677,11 @@ elseif ($action === 'mark_po_delivered') {
 elseif ($action === 'log_po_delay') {
     if (!in_array($_SESSION['user_role'], ['purchasing', 'admin'])) {
         throw new Exception("Unauthorized.");
+    }
+
+    $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!empty($csrfToken) && function_exists('validate_csrf_token') && !validate_csrf_token($csrfToken)) {
+        throw new Exception("Security token invalid or expired. Please refresh the page.");
     }
 
     $po_id = $_POST['po_id'];
@@ -556,6 +725,12 @@ elseif ($action === 'update_po_eta') {
     header('Content-Type: application/json');
     if (!in_array($_SESSION['user_role'], ['purchasing', 'admin'])) {
         echo json_encode(['status' => 'error', 'message' => 'Unauthorized. Only Purchasing Officers can update the ETA.']);
+        exit;
+    }
+
+    $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!empty($csrfToken) && function_exists('validate_csrf_token') && !validate_csrf_token($csrfToken)) {
+        echo json_encode(['status' => 'error', 'message' => 'Security token invalid or expired. Please refresh the page.']);
         exit;
     }
 
