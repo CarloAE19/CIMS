@@ -397,7 +397,14 @@ if (!empty($ref)) {
                                 <?= ($type === 'po') ? 'Physical Fulfillment Status' : 'Physical Custody Status' ?>
                             </label>
                             <?php if ($type === 'po'): ?>
-                                <?php if ($document['status'] === 'Delivered (Discrepancy)'): ?>
+                                <?php if ($document['status'] === 'Cancelled'): ?>
+                                    <div>
+                                        <span class="badge bg-dark text-white border border-secondary px-2 py-1" style="font-size: 0.75rem;">
+                                            <i class="bi bi-slash-circle-fill text-danger me-1"></i> Voided / Cancelled Order
+                                        </span>
+                                    </div>
+                                    <small class="text-danger d-block mt-1 fw-semibold" style="font-size: 0.72rem;">Order voided by Authorized Officer &bull; Inventory intake revoked</small>
+                                <?php elseif ($document['status'] === 'Delivered (Discrepancy)'): ?>
                                     <div>
                                         <span class="badge bg-warning text-dark border px-2 py-1" style="font-size: 0.75rem;">
                                             <i class="bi bi-exclamation-triangle-fill text-dark me-1"></i> Delivered (Discrepancy Logged)
