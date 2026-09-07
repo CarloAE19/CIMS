@@ -245,7 +245,10 @@ $approvedRS = $pdo->query("
                         style="font-size: 0.85rem; background-color: #e8f4fd; color: #0d47a1;">
                         <i class="bi bi-info-circle-fill fs-5 me-2 flex-shrink-0 text-primary"></i>
                         <div>
-                            <strong>Multi-Stage Delivery:</strong> Enter the quantity physically arriving in this shipment. If fewer units arrive, choose whether the remainder is <strong>To Follow</strong> (supplier has pending stock, keeps PO open) or <strong>Sold Out</strong> (supplier cancelled). Master Inventory only increments by the units received today.
+                            <strong>Multi-Stage Delivery:</strong> Enter the quantity physically arriving in this
+                            shipment. If fewer units arrive, choose whether the remainder is <strong>To Follow</strong>
+                            (supplier has pending stock, keeps PO open) or <strong>Sold Out</strong> (supplier
+                            cancelled). Master Inventory only increments by the units received today.
                         </div>
                     </div>
 
@@ -343,7 +346,8 @@ $approvedRS = $pdo->query("
                                     <th class="text-center" style="width: 80px;">Remaining</th>
                                     <th class="text-center" style="width: 110px;">Receive Today</th>
                                     <th class="text-center" style="width: 120px;">Unit Price (₱)</th>
-                                    <th class="text-center" style="min-width: 200px;">Supplier Status / If Incomplete</th>
+                                    <th class="text-center" style="min-width: 200px;">Supplier Status / If Incomplete
+                                    </th>
                                     <th class="text-end" style="width: 110px;">Batch Subtotal</th>
                                 </tr>
                             </thead>
@@ -352,8 +356,10 @@ $approvedRS = $pdo->query("
                             </tbody>
                             <tfoot class="table-light border-top">
                                 <tr>
-                                    <td colspan="7" class="text-end fw-bold text-muted text-uppercase small py-2">Batch Delivery Total:</td>
-                                    <td class="text-end fw-bold text-success fs-6 py-2" id="receiveBatchTotalVal">₱0.00</td>
+                                    <td colspan="7" class="text-end fw-bold text-muted text-uppercase small py-2">Batch
+                                        Delivery Total:</td>
+                                    <td class="text-end fw-bold text-success fs-6 py-2" id="receiveBatchTotalVal">₱0.00
+                                    </td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -375,15 +381,20 @@ $approvedRS = $pdo->query("
 =========================================== -->
 <div class="modal fade" id="discrepancyModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
-        <div class="modal-content border-0 shadow-lg" id="discModalCard" style="border-top: 4px solid #ffc107 !important;">
+        <div class="modal-content border-0 shadow-lg" id="discModalCard"
+            style="border-top: 4px solid #ffc107 !important;">
             <div class="modal-header bg-white border-bottom py-3">
                 <div class="d-flex align-items-center gap-2">
-                    <div id="discModalIconWrap" class="rounded-circle p-2 bg-warning-subtle text-warning d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <div id="discModalIconWrap"
+                        class="rounded-circle p-2 bg-warning-subtle text-warning d-flex align-items-center justify-content-center"
+                        style="width: 40px; height: 40px;">
                         <i class="bi bi-clock-history fs-5" id="discModalIcon"></i>
                     </div>
                     <div>
-                        <h5 class="modal-title fw-bold text-dark mb-0" id="discModalTitle">Delivery Intake & Audit History</h5>
-                        <small class="text-muted" id="discModalSubtitle">Multi-Stage Fulfillment & Discrepancy Timeline</small>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="discModalTitle">Delivery Intake & Audit
+                            History</h5>
+                        <small class="text-muted" id="discModalSubtitle">Multi-Stage Fulfillment & Discrepancy
+                            Timeline</small>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -396,7 +407,8 @@ $approvedRS = $pdo->query("
                             <span class="text-muted small fw-bold text-uppercase d-block mb-1">
                                 <i class="bi bi-file-earmark-text me-1 text-primary"></i>Purchase Order
                             </span>
-                            <span id="discPoNo" class="fw-bold font-monospace text-primary fs-6 bg-light px-3 py-1 rounded border"></span>
+                            <span id="discPoNo"
+                                class="fw-bold font-monospace text-primary fs-6 bg-light px-3 py-1 rounded border"></span>
                         </div>
                         <div class="text-end">
                             <span class="text-muted small fw-bold text-uppercase d-block mb-1">Order Status</span>
@@ -426,17 +438,22 @@ $approvedRS = $pdo->query("
                 <!-- Collapsible Raw Audit Log -->
                 <div class="mt-3 pt-2 border-top">
                     <div class="d-flex justify-content-between align-items-center">
-                        <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none small" type="button" data-bs-toggle="collapse" data-bs-target="#discRawLogCollapse" aria-expanded="false">
-                            <i class="bi bi-code-square me-1"></i> <span id="discRawToggleText">View Raw System Log</span>
+                        <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none small" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#discRawLogCollapse" aria-expanded="false">
+                            <i class="bi bi-code-square me-1"></i> <span id="discRawToggleText">View Raw System
+                                Log</span>
                         </button>
                     </div>
                     <div class="collapse mt-2" id="discRawLogCollapse">
-                        <div class="p-3 bg-white border rounded shadow-sm font-monospace text-muted small" style="max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-size: 0.78rem;" id="discRawLog"></div>
+                        <div class="p-3 bg-white border rounded shadow-sm font-monospace text-muted small"
+                            style="max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-size: 0.78rem;"
+                            id="discRawLog"></div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer justify-content-between bg-white border-top py-2 px-3">
-                <button type="button" class="btn btn-light text-muted fw-bold px-4" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-light text-muted fw-bold px-4"
+                    data-bs-dismiss="modal">Close</button>
                 <div id="discActionButtons"></div>
             </div>
         </div>
@@ -611,7 +628,8 @@ $approvedRS = $pdo->query("
                                     style="height: 46px; width: auto; object-fit: contain;">
                                 <div>
                                     <h4 class="fw-bold text-dark mb-0"
-                                        style="letter-spacing: -0.5px; font-size: 1.20rem; line-height: 1.15;">GENETIAN BUILDERS</h4>
+                                        style="letter-spacing: -0.5px; font-size: 1.20rem; line-height: 1.15;">GENETIAN
+                                        BUILDERS</h4>
                                     <div class="text-uppercase fw-bold text-primary"
                                         style="letter-spacing: 0.8px; font-size: 0.75rem; line-height: 1.15;">
                                         CONSTRUCTION & ENTERPRISE INC.</div>
@@ -624,7 +642,8 @@ $approvedRS = $pdo->query("
                         <div class="col-4 text-end">
                             <span class="badge bg-dark px-2 py-1 text-uppercase" id="printPoStatus"
                                 style="font-size: 0.72rem;">Pending</span>
-                            <div class="fw-bold text-primary mt-1" id="printPoNo" style="font-size: 1.10rem; letter-spacing: -0.2px; line-height: 1.1;">PO-000000
+                            <div class="fw-bold text-primary mt-1" id="printPoNo"
+                                style="font-size: 1.10rem; letter-spacing: -0.2px; line-height: 1.1;">PO-000000
                             </div>
                         </div>
                     </div>
@@ -634,19 +653,29 @@ $approvedRS = $pdo->query("
                         <div class="col-6 border-end pe-2">
                             <h6 class="fw-bold text-uppercase text-muted mb-0" style="font-size: 0.72rem;"><i
                                     class="bi bi-building me-1"></i> Supplier Information</h6>
-                            <div class="fw-bold text-dark" id="printSupplierName" style="font-size: 0.84rem; line-height: 1.2;">-</div>
-                            <div class="text-secondary" id="printSupplierContact" style="font-size: 0.76rem; line-height: 1.2;">-</div>
-                            <div class="text-secondary" id="printSupplierPhone" style="font-size: 0.76rem; line-height: 1.2;">-</div>
-                            <div class="text-secondary" id="printSupplierAddress" style="font-size: 0.76rem; line-height: 1.2;">-</div>
+                            <div class="fw-bold text-dark" id="printSupplierName"
+                                style="font-size: 0.84rem; line-height: 1.2;">-</div>
+                            <div class="text-secondary" id="printSupplierContact"
+                                style="font-size: 0.76rem; line-height: 1.2;">-</div>
+                            <div class="text-secondary" id="printSupplierPhone"
+                                style="font-size: 0.76rem; line-height: 1.2;">-</div>
+                            <div class="text-secondary" id="printSupplierAddress"
+                                style="font-size: 0.76rem; line-height: 1.2;">-</div>
                         </div>
                         <div class="col-6 ps-2">
                             <h6 class="fw-bold text-uppercase text-muted mb-0" style="font-size: 0.72rem;"><i
                                     class="bi bi-info-circle me-1"></i> Order & Delivery Specs</h6>
-                            <div style="font-size: 0.78rem; line-height: 1.25;"><strong>Date Generated:</strong> <span id="printPoDate">-</span></div>
-                            <div style="font-size: 0.78rem; line-height: 1.25;"><strong>Linked Requisition:</strong> <span id="printRsNo">-</span></div>
-                            <div style="font-size: 0.78rem; line-height: 1.25;"><strong>Project Destination:</strong> <span id="printProjectName">-</span></div>
-                            <div class="text-danger fw-bold" style="font-size: 0.78rem; line-height: 1.25;"><strong>Warehouse Target ETA:</strong> <span
-                                    id="printPoEta">-</span></div>
+                            <div style="font-size: 0.78rem; line-height: 1.25;"><strong>Date Generated:</strong> <span
+                                    id="printPoDate">-</span></div>
+                            <div style="font-size: 0.78rem; line-height: 1.25;"><strong>Linked Requisition:</strong>
+                                <span id="printRsNo">-</span>
+                            </div>
+                            <div style="font-size: 0.78rem; line-height: 1.25;"><strong>Project Destination:</strong>
+                                <span id="printProjectName">-</span>
+                            </div>
+                            <div class="text-danger fw-bold" style="font-size: 0.78rem; line-height: 1.25;">
+                                <strong>Warehouse Target ETA:</strong> <span id="printPoEta">-</span>
+                            </div>
                         </div>
                     </div>
 
@@ -743,7 +772,8 @@ $approvedRS = $pdo->query("
                                 <i class="bi bi-shield-lock-fill" style="font-size: 0.95rem;"></i>
                             </div>
                             <div>
-                                <div class="fw-bold text-dark" style="font-size: 0.76rem; letter-spacing: -0.2px; line-height: 1.15;">
+                                <div class="fw-bold text-dark"
+                                    style="font-size: 0.76rem; letter-spacing: -0.2px; line-height: 1.15;">
                                     Certified Document
                                 </div>
                                 <div class="text-muted" style="font-size: 0.64rem; margin-top: 1px; line-height: 1.1;">
@@ -769,7 +799,125 @@ $approvedRS = $pdo->query("
     </div>
 </div>
 
+<!-- ==========================================
+  7. MODAL: VOID / CANCEL PURCHASE ORDER (ISO 9001 AUDITED)
+=========================================== -->
+<div class="modal fade" id="cancelPoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-slash-circle-fill text-danger me-2"></i>Void / Cancel Purchase Order
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <form id="cancelPoForm" onsubmit="handleCancelPoSubmit(event)">
+                <div class="modal-body p-4 bg-light">
+                    <?php if (function_exists('generate_csrf_token')): ?>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
+                    <?php endif; ?>
+                    <input type="hidden" id="cancelPoId" name="po_id" value="">
+
+                    <!-- Warning Alert Banner -->
+                    <div class="alert alert-danger d-flex align-items-start p-3 mb-3 border-0 shadow-sm"
+                        style="border-radius: 8px; font-size: 0.85rem;">
+                        <i class="bi bi-exclamation-triangle-fill fs-5 text-danger me-2 mt-1 flex-shrink-0"></i>
+                        <div>
+                            <strong>Permanent Administrative Action:</strong> Cancelling this PO will permanently void
+                            it, mark remaining unfulfilled items as Cancelled, and revert the linked Requisition back to
+                            <strong>Approved</strong> so Purchasing can immediately reissue an order.
+                        </div>
+                    </div>
+
+                    <!-- PO Reference Information -->
+                    <div class="card border-0 shadow-sm mb-3 bg-white">
+                        <div class="card-body p-3">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label text-muted text-uppercase fw-bold mb-1"
+                                        style="font-size: 0.72rem;">PO Number</label>
+                                    <input type="text" class="form-control form-control-sm fw-bold text-danger bg-light"
+                                        id="cancelPoNoDisplay" readonly>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted text-uppercase fw-bold mb-1"
+                                        style="font-size: 0.72rem;">Linked Requisition</label>
+                                    <input type="text" class="form-control form-control-sm fw-bold text-dark bg-light"
+                                        id="cancelPoRsDisplay" readonly>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label text-muted text-uppercase fw-bold mb-1"
+                                        style="font-size: 0.72rem;">Supplier</label>
+                                    <input type="text" class="form-control form-control-sm fw-bold text-dark bg-light"
+                                        id="cancelPoSupplierDisplay" readonly>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reason Selection -->
+                    <div class="mb-3">
+                        <label for="cancelPoReason" class="form-label fw-bold text-dark small text-uppercase">
+                            Reason for Cancellation <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select shadow-sm" id="cancelPoReason" name="cancellation_reason" required>
+                            <option value="" disabled selected>Select reason for cancellation...</option>
+                            <option value="Supplier Out of Stock / Unfulfillable">Supplier Out of Stock / Unfulfillable
+                            </option>
+                            <option value="Pricing / Quotation Discrepancy">Pricing / Quotation Discrepancy</option>
+                            <option value="Duplicate Order Created">Duplicate Order Created</option>
+                            <option value="Project Requirement Cancelled / Revised">Project Requirement Cancelled /
+                                Revised</option>
+                            <option value="Supplier Lead Time Unacceptable / Severe Delay">Supplier Lead Time
+                                Unacceptable / Severe Delay</option>
+                            <option value="Supplier Unresponsive / Communication Breakdown">Supplier Unresponsive /
+                                Communication Breakdown</option>
+                            <option value="Administrative / Other Reason">Administrative / Other Reason</option>
+                        </select>
+                    </div>
+
+                    <!-- Remarks Textarea -->
+                    <div class="mb-2">
+                        <label for="cancelPoNotes" class="form-label fw-bold text-dark small text-uppercase">
+                            Audit Notes / Explanation <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control shadow-sm" id="cancelPoNotes" name="cancellation_notes" rows="3"
+                            placeholder="Enter detailed audit justification for cancellation..." required></textarea>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                            <i class="bi bi-shield-check me-1"></i>This note will be permanently stamped into
+                            audit trail.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between bg-white border-top-0 p-3">
+                    <button type="button" class="btn btn-light text-muted fw-bold px-4" data-bs-dismiss="modal">Keep
+                        Order Active</button>
+                    <button type="submit" id="confirmCancelPoBtn" class="btn btn-danger fw-bold px-4 shadow-sm">
+                        <i class="bi bi-slash-circle me-1"></i> Void Purchase Order
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+    window.openCancelPoModal = function (id, poNo, supplierName, rsNo) {
+        document.getElementById('cancelPoId').value = id;
+        document.getElementById('cancelPoNoDisplay').value = poNo || ('PO-' + id);
+        document.getElementById('cancelPoSupplierDisplay').value = supplierName || '-';
+        document.getElementById('cancelPoRsDisplay').value = rsNo || 'N/A';
+        document.getElementById('cancelPoReason').value = '';
+        document.getElementById('cancelPoNotes').value = '';
+
+        var myModalEl = document.getElementById('cancelPoModal');
+        var cancelModal = bootstrap.Modal.getInstance(myModalEl);
+        if (!cancelModal) {
+            cancelModal = new bootstrap.Modal(myModalEl);
+        }
+        cancelModal.show();
+    };
     window.openEditEtaModal = function (id, po_no, currentEta) {
         document.getElementById('editEtaPoId').value = id;
         document.getElementById('editEtaPoNo').value = po_no;
@@ -1013,6 +1161,21 @@ $approvedRS = $pdo->query("
                 if (sendBtn) {
                     sendBtn.disabled = false;
                     sendBtn.innerHTML = '<i class="fa-brands fa-viber me-1"></i> Send via Viber';
+                }
+            });
+        }
+
+        const cancelPoModal = document.getElementById('cancelPoModal');
+        if (cancelPoModal) {
+            cancelPoModal.addEventListener('shown.bs.modal', function () {
+                const reasonSelect = document.getElementById('cancelPoReason');
+                if (reasonSelect) reasonSelect.focus();
+            });
+            cancelPoModal.addEventListener('hidden.bs.modal', function () {
+                const submitBtn = document.getElementById('confirmCancelPoBtn');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-slash-circle me-1"></i> Void Purchase Order';
                 }
             });
         }
