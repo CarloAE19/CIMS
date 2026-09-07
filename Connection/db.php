@@ -274,6 +274,8 @@ try {
             po_id INT NOT NULL,
             item_code VARCHAR(50) NOT NULL,
             quantity INT NOT NULL,
+            received_quantity INT NOT NULL DEFAULT 0,
+            item_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
             unit_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -538,6 +540,23 @@ try {
     } catch (PDOException $e) {}
     try {
         $pdo->exec("ALTER TABLE po_items ADD COLUMN unit VARCHAR(50) NULL");
+    } catch (PDOException $e) {}
+
+    // Auto-patch: Support Partial Deliveries & Multi-Stage PO Fulfillment
+    try {
+        $pdo->exec("ALTER TABLE po_items ADD COLUMN received_quantity INT NOT NULL DEFAULT 0");
+    } catch (PDOException $e) {}
+    try {
+        $pdo->exec("ALTER TABLE po_items ADD COLUMN item_status VARCHAR(50) NOT NULL DEFAULT 'Pending'");
+    } catch (PDOException $e) {}
+    try {
+        // Backfill historical Delivered PO items if needed
+        $pdo->exec("
+            UPDATE po_items pi
+            JOIN purchase_orders po ON pi.po_id = po.id
+            SET pi.received_quantity = pi.quantity, pi.item_status = 'Complete'
+            WHERE po.status = 'Delivered' AND pi.received_quantity = 0
+        ");
     } catch (PDOException $e) {}
 
     // Auto-patch: Performance Indexes (One-time migration check for maximum Hostinger performance)
