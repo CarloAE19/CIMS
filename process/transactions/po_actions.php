@@ -771,3 +771,116 @@ elseif ($action === 'update_po_eta') {
     ]);
     exit;
 }
+
+// --- CANCEL / VOID PURCHASE ORDER ---
+elseif ($action === 'cancel_po') {
+    header('Content-Type: application/json');
+    if (!in_array($_SESSION['user_role'], ['purchasing', 'admin'])) {
+        echo json_encode(['status' => 'error', 'message' => 'Unauthorized. Only Purchasing Officers and Admins can void or cancel Purchase Orders.']);
+        exit;
+    }
+
+    $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!empty($csrfToken) && function_exists('validate_csrf_token') && !validate_csrf_token($csrfToken)) {
+        echo json_encode(['status' => 'error', 'message' => 'Security token invalid or expired. Please refresh the page.']);
+        exit;
+    }
+
+    $po_id = filter_input(INPUT_POST, 'po_id', FILTER_VALIDATE_INT);
+    $cancellation_reason = trim($_POST['cancellation_reason'] ?? '');
+    $cancellation_notes = trim($_POST['cancellation_notes'] ?? '');
+
+    if (!$po_id) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid Purchase Order ID.']);
+        exit;
+    }
+
+    if (empty($cancellation_reason)) {
+        echo json_encode(['status' => 'error', 'message' => 'Please select or provide a reason for cancellation.']);
+        exit;
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $poStmt = $pdo->prepare("SELECT p.*, s.company_name FROM purchase_orders p LEFT JOIN suppliers s ON p.supplier_id = s.id WHERE p.id = ? FOR UPDATE");
+        $poStmt->execute([$po_id]);
+        $po = $poStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$po) {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'Purchase Order not found.']);
+            exit;
+        }
+
+        if (in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)'])) {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'Cannot cancel a fully Delivered Purchase Order as stock has already been ingested into master inventory.']);
+            exit;
+        }
+
+        if ($po['status'] === 'Cancelled') {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'This Purchase Order is already cancelled.']);
+            exit;
+        }
+
+        // Build permanent audit log trail (ISO 9001 Clause 8.5.2 & 8.7)
+        $timestamp = date('Y-m-d H:i:s');
+        $user_fullname = $_SESSION['user_fullname'] ?? $_SESSION['user_name'] ?? 'Authorized Officer';
+        $user_role = strtoupper($_SESSION['user_role'] ?? 'OFFICER');
+        $auditReason = "[PO VOIDED / CANCELLED — {$timestamp} by {$user_fullname} ({$user_role})]\nReason: {$cancellation_reason}";
+        if (!empty($cancellation_notes)) {
+            $auditReason .= "\nRemarks: {$cancellation_notes}";
+        }
+
+        $existingRemarks = trim($po['delay_remarks'] ?? '');
+        $newRemarks = $existingRemarks !== '' ? $existingRemarks . "\n\n" . $auditReason : $auditReason;
+
+        // 1. Update PO status to Cancelled and append audit remarks
+        $updatePoStmt = $pdo->prepare("UPDATE purchase_orders SET status = 'Cancelled', delay_remarks = ? WHERE id = ?");
+        $updatePoStmt->execute([$newRemarks, $po_id]);
+
+        // 2. Mark remaining unfulfilled items in po_items as Cancelled
+        $pdo->prepare("UPDATE po_items SET item_status = 'Cancelled' WHERE po_id = ? AND item_status != 'Delivered'")->execute([$po_id]);
+
+        // 3. If linked to an RS, check if any other active PO is linked to that RS. If none, revert RS to 'Approved'
+        if (!empty($po['rs_id'])) {
+            $otherActivePoStmt = $pdo->prepare("SELECT COUNT(*) FROM purchase_orders WHERE rs_id = ? AND id != ? AND status != 'Cancelled'");
+            $otherActivePoStmt->execute([$po['rs_id'], $po_id]);
+            $otherActiveCount = (int)$otherActivePoStmt->fetchColumn();
+
+            if ($otherActiveCount === 0) {
+                $pdo->prepare("UPDATE requisitions SET status = 'Approved' WHERE id = ?")->execute([$po['rs_id']]);
+            }
+        }
+
+        // 4. Dispatch notification alerts to warehouse, management, and purchasing
+        $notifTitle = "🚫 PO Voided: " . $po['po_no'];
+        $notifBody = "PO {$po['po_no']} for {$po['company_name']} was voided/cancelled by {$user_fullname}. Reason: {$cancellation_reason}";
+
+        foreach (['warehouse', 'management', 'purchasing'] as $targetRole) {
+            $notifStmt = $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES (?, ?, ?)");
+            $notifStmt->execute([$targetRole, $notifTitle, $notifBody]);
+            sendPushNotification($pdo, $notifTitle, $notifBody, $targetRole, null);
+        }
+
+        $pdo->commit();
+
+        echo json_encode([
+            'status' => 'success',
+            'message' => "Purchase Order {$po['po_no']} has been voided/cancelled successfully.",
+            'po_no' => $po['po_no']
+        ]);
+        exit;
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Failed to cancel Purchase Order: ' . $e->getMessage()
+        ]);
+        exit;
+    }
+}
