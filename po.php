@@ -83,12 +83,136 @@ include 'layout/header.php';
 <!-- Premium Mobile Card Table CSS -->
 <style>
     @media (max-width: 767.98px) {
-        .table-responsive {
+        .po-main-table-wrap,
+        .table-responsive:has(#poTable) {
             overflow-x: hidden !important;
             border: none !important;
             box-shadow: none !important;
             background: transparent !important;
         }
+
+    /* ==========================================
+       Virtual Purchase Order Document (PC & Mobile Adaptive)
+    ========================================== */
+    .po-half-a4-paper {
+        max-width: 780px !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        background: #ffffff !important;
+        border: 1px solid #dcdfe4 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+        position: relative;
+        box-sizing: border-box;
+    }
+
+    #poPrintPaper .po-paper-table-wrap {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        border: 1px solid #dee2e6 !important;
+        background: #ffffff !important;
+    }
+
+    .po-doc-table {
+        table-layout: auto;
+        width: 100% !important;
+    }
+
+    /* Desktop View (PC / Laptop): Fills modal-lg naturally with generous spacing */
+    @media (min-width: 768px) {
+        .po-half-a4-paper {
+            max-width: 780px !important;
+            padding: 1.5rem 1.75rem !important;
+        }
+
+        .po-doc-logo {
+            height: 46px !important;
+        }
+
+        .po-doc-brand {
+            font-size: 1.20rem !important;
+        }
+
+        .po-doc-subbrand {
+            font-size: 0.74rem !important;
+        }
+
+        .po-doc-manifest-lbl {
+            font-size: 0.68rem !important;
+        }
+
+        .po-doc-status {
+            font-size: 0.72rem !important;
+            padding: 3px 8px !important;
+        }
+
+        .po-doc-pono {
+            font-size: 1.10rem !important;
+        }
+
+        .po-meta-grid {
+            font-size: 0.80rem !important;
+            padding: 8px 12px !important;
+        }
+
+        .po-doc-table th,
+        .po-doc-table td {
+            padding: 6px 8px !important;
+            font-size: 0.80rem !important;
+        }
+    }
+
+    /* Mobile Phone View: Authentic Half-A4 (A5) voucher proportions */
+    @media (max-width: 767.98px) {
+        #poPrintModal .modal-dialog {
+            margin: 0.5rem auto !important;
+            max-width: 100% !important;
+        }
+
+        #poPrintDocumentBody {
+            padding: 0.45rem !important;
+        }
+
+        .po-half-a4-paper {
+            max-width: 595px !important;
+            padding: 0.60rem 0.65rem !important;
+            border-radius: 6px !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06) !important;
+        }
+
+        .po-doc-brand {
+            font-size: 0.98rem !important;
+        }
+
+        .po-doc-subbrand {
+            font-size: 0.62rem !important;
+        }
+
+        .po-doc-manifest-lbl {
+            font-size: 0.56rem !important;
+        }
+
+        .po-doc-status {
+            font-size: 0.64rem !important;
+            padding: 2px 6px !important;
+        }
+
+        .po-doc-pono {
+            font-size: 0.92rem !important;
+            white-space: nowrap !important;
+        }
+
+        .po-meta-grid {
+            font-size: 0.72rem !important;
+            padding: 4px 6px !important;
+        }
+
+        .po-doc-table th,
+        .po-doc-table td {
+            padding: 3px 3px !important;
+            font-size: 0.70rem !important;
+        }
+    }
 
         #poTable {
             display: block;
@@ -464,7 +588,7 @@ include 'layout/header.php';
             </div>
         </div>
 
-        <div class="table-responsive border rounded shadow-sm bg-white">
+        <div class="table-responsive border rounded shadow-sm bg-white po-main-table-wrap">
             <table class="table table-hover align-middle mb-0 text-nowrap" id="poTable">
                 <thead class="table-dark">
                     <tr>
@@ -1712,21 +1836,24 @@ include 'layout/header.php';
                         let fulfillmentBadge = '';
                         if (recvQty > 0 || item.item_status) {
                             if (item.item_status === 'Complete' || recvQty >= ordQty) {
-                                fulfillmentBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle ms-2 py-0" style="font-size: 0.68rem;"><i class="bi bi-check2-circle me-1"></i>Delivered (${recvQty}/${ordQty})</span>`;
+                                fulfillmentBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle py-0 px-1" style="font-size: 0.64rem;"><i class="bi bi-check2-circle me-1"></i>Delivered (${recvQty}/${ordQty})</span>`;
                             } else if (item.item_status === 'Sold Out') {
-                                fulfillmentBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-2 py-0" style="font-size: 0.68rem;"><i class="bi bi-x-circle me-1"></i>Sold Out (${recvQty}/${ordQty})</span>`;
+                                fulfillmentBadge = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0 px-1" style="font-size: 0.64rem;"><i class="bi bi-x-circle me-1"></i>Sold Out (${recvQty}/${ordQty})</span>`;
                             } else {
-                                fulfillmentBadge = `<span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-2 py-0" style="font-size: 0.68rem;"><i class="bi bi-pie-chart-fill me-1"></i>Recv'd ${recvQty}/${ordQty} (${item.remaining_qty || (ordQty - recvQty)} to follow)</span>`;
+                                fulfillmentBadge = `<span class="badge bg-warning-subtle text-dark border border-warning-subtle py-0 px-1" style="font-size: 0.64rem;"><i class="bi bi-pie-chart-fill me-1"></i>Recv'd ${recvQty}/${ordQty} (${item.remaining_qty || (ordQty - recvQty)} to follow)</span>`;
                             }
                         }
 
                         tr.innerHTML = `
-                            <td class="text-center font-monospace">${index + 1}</td>
-                            <td class="fw-bold text-muted">${item.item_code}</td>
-                            <td class="fw-bold text-dark">${item.item_name} <span class="text-muted fw-normal">(${item.unit || 'units'})</span> ${fulfillmentBadge}</td>
-                            <td class="text-center fw-bold text-primary">${item.quantity}</td>
-                            <td class="text-end">₱${parseFloat(item.unit_price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            <td class="text-end fw-bold">₱${parseFloat(item.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td class="text-center font-monospace py-1 px-1">${index + 1}</td>
+                            <td class="fw-bold text-muted py-1 px-1 font-monospace" style="font-size: 0.70rem; word-break: break-all;">${item.item_code}</td>
+                            <td class="py-1 px-1 text-wrap" style="min-width: 85px;">
+                                <div class="fw-bold text-dark" style="font-size: 0.74rem; line-height: 1.15;">${item.item_name} <span class="text-muted fw-normal" style="font-size: 0.68rem;">(${item.unit || 'units'})</span></div>
+                                ${fulfillmentBadge ? `<div class="mt-0.5">${fulfillmentBadge}</div>` : ''}
+                            </td>
+                            <td class="text-center fw-bold text-primary py-1 px-1" style="font-size: 0.74rem;">${item.quantity}</td>
+                            <td class="text-end py-1 px-1 text-nowrap" style="font-size: 0.72rem;">₱${parseFloat(item.unit_price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td class="text-end fw-bold py-1 px-1 text-nowrap" style="font-size: 0.74rem;">₱${parseFloat(item.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         `;
                         tbody.appendChild(tr);
                     });
@@ -1849,6 +1976,8 @@ include 'layout/header.php';
                         margin-right: 0 !important;
                     }
                     .col-8 { width: 66.666667% !important; flex: 0 0 66.666667% !important; }
+                    .col-7 { width: 58.333333% !important; flex: 0 0 58.333333% !important; }
+                    .col-5 { width: 41.666667% !important; flex: 0 0 41.666667% !important; }
                     .col-4 { width: 33.333333% !important; flex: 0 0 33.333333% !important; }
                     .col-6 { width: 50% !important; flex: 0 0 50% !important; }
                     .col-9 { width: 75% !important; flex: 0 0 75% !important; }
@@ -1861,6 +1990,8 @@ include 'layout/header.php';
                     .text-end { text-align: right !important; }
                     .text-center { text-align: center !important; }
                     .text-start { text-align: left !important; }
+                    .text-nowrap { white-space: nowrap !important; }
+                    .text-truncate { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
                     .table {
                         width: 100% !important;
                         margin-bottom: 0.25rem !important;
