@@ -230,6 +230,23 @@ include 'layout/header.php';
         .po-filter-tile[data-filter="delayed"].active-filter {
             box-shadow: 0 0 0 2px #dc3545, 0 8px 20px rgba(220, 53, 69, 0.2) !important;
         }
+
+        /* 3-Dots Logistics Action Dropdown */
+        .dropdown-item {
+            transition: background-color 0.15s ease, color 0.15s ease;
+            font-size: 0.83rem;
+            cursor: pointer;
+        }
+        .dropdown-item:hover {
+            background-color: #f1f5f9;
+        }
+        .dropdown-item:active {
+            background-color: #e2e8f0;
+        }
+        .dropdown-item.text-danger:hover {
+            background-color: #fee2e2 !important;
+            color: #dc2626 !important;
+        }
     </style>
 
 <div class="container-fluid px-3 px-md-4 py-4">
@@ -409,6 +426,7 @@ include 'layout/header.php';
                                 <option value="Delivered">Delivered (Complete)</option>
                                 <option value="Delivered (Discrepancy)">Delivered (Discrepancy)</option>
                                 <option value="Delayed">Delayed (All Reasons)</option>
+                                <option value="Cancelled">Cancelled / Voided</option>
                             </select>
                         </div>
                     </div>
@@ -485,6 +503,8 @@ include 'layout/header.php';
                                 $statusClass = 'bg-success';
                             if ($displayStatus === 'Delivered (Discrepancy)')
                                 $statusClass = 'bg-warning text-dark';
+                            if ($displayStatus === 'Cancelled')
+                                $statusClass = 'bg-dark text-white border border-secondary shadow-sm';
 
                             // Compute ETA Badges & Urgency Filter Attribute
                             $etaBadge = '<span class="text-muted small">Not Set</span>';
@@ -493,9 +513,13 @@ include 'layout/header.php';
 
                             if (in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)'])) {
                                 $etaUrgencyVal = 'delivered';
+                            } elseif ($po['status'] === 'Cancelled') {
+                                $etaUrgencyVal = 'cancelled';
                             }
 
-                            if ($etaDateStr) {
+                            if ($po['status'] === 'Cancelled') {
+                                $etaBadge = '<span class="badge bg-secondary text-white-50 shadow-sm"><i class="bi bi-slash-circle me-1"></i>Voided</span>';
+                            } elseif ($etaDateStr) {
                                 $formattedEta = date('M d, Y', strtotime($etaDateStr));
                                 if (in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)'])) {
                                     $etaBadge = '<span class="badge bg-light text-muted border shadow-sm"><i class="bi bi-check2-circle me-1 text-success"></i>' . $formattedEta . '</span>';
@@ -567,13 +591,17 @@ include 'layout/header.php';
                                         <small class="d-block text-danger mt-2 fw-bold"
                                             style="font-size: 0.75rem; white-space: normal;"><i
                                                 class="bi bi-exclamation-triangle-fill me-1"></i><?= htmlspecialchars($po['delay_remarks']) ?></small>
+                                    <?php elseif ($po['status'] === 'Cancelled'): ?>
+                                        <small class="d-block text-muted mt-1 fw-bold"
+                                            style="font-size: 0.72rem; white-space: normal;"><i
+                                                class="bi bi-slash-circle me-1 text-danger"></i>Voided Order</small>
                                     <?php endif; ?>
                                 </td>
 
                                 <td data-label="Warehouse ETA">
                                     <div class="d-flex align-items-center gap-1">
                                         <?= $etaBadge ?>
-                                        <?php if (in_array($role, ['admin', 'purchasing'])): ?>
+                                        <?php if (in_array($role, ['admin', 'purchasing']) && $po['status'] !== 'Cancelled'): ?>
                                             <button type="button"
                                                 class="btn btn-sm btn-link text-muted p-0 ms-1 text-decoration-none"
                                                 title="Update ETA"
@@ -584,19 +612,14 @@ include 'layout/header.php';
                                     </div>
                                 </td>
 
-                                <td class="text-center" data-label="Actions">
-                                    <?php if (in_array($role, ['admin', 'purchasing']) && !in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)'])): ?>
-                                        <button class="btn btn-sm btn-viber fw-bold shadow-sm me-1" title="Send PO via Viber"
-                                            onclick="openViberPreviewModal(<?= $po['id'] ?>, '<?= $po['po_no'] ?>', <?= (int) $po['supplier_id'] ?>, '<?= $po['contact_number'] ?>')">
-                                            <i class="fa-brands fa-viber me-1"></i>Viber
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger fw-bold shadow-sm me-1"
-                                            onclick="openDelayModal(<?= $po['id'] ?>, '<?= $po['po_no'] ?>', '<?= $po['expected_delivery_date'] ?? '' ?>')">
-                                            <i class="bi bi-cloud-lightning-rain-fill"></i> <span class="ms-1">Delay</span>
-                                        </button>
-                                    <?php endif; ?>
+                                <td class="text-center text-nowrap" data-label="Actions">
+                                    <?php
+                                    $receiptFile = !empty($po['proof_of_receipt']) ? basename($po['proof_of_receipt']) : '';
+                                    $secureReceiptUrl = $receiptFile ? ('secure-image?type=receipts&file=' . urlencode($receiptFile)) : '';
+                                    $canManageLogistics = in_array($role, ['admin', 'purchasing']) && !in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)', 'Cancelled']);
+                                    ?>
 
-                                    <?php if (in_array($role, ['admin', 'warehouse', 'purchasing']) && $po['status'] !== 'Delivered' && $po['status'] !== 'Delivered (Discrepancy)'): ?>
+                                    <?php if (in_array($role, ['admin', 'warehouse', 'purchasing']) && !in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)', 'Cancelled'])): ?>
                                         <!-- RECEIVE ORDER (STOCK IN) -->
                                         <button type="button" class="btn btn-sm btn-success fw-bold shadow-sm me-1"
                                             onclick="openReceiveModal(<?= $po['id'] ?>, '<?= $po['po_no'] ?>')">
@@ -604,21 +627,7 @@ include 'layout/header.php';
                                         </button>
                                     <?php endif; ?>
 
-                                    <?php if (!empty($po['proof_of_receipt'])):
-                                        $receiptFile = basename($po['proof_of_receipt']);
-                                        $secureReceiptUrl = 'secure-image?type=receipts&file=' . urlencode($receiptFile);
-                                        ?>
-                                        <a href="<?= htmlspecialchars($secureReceiptUrl) ?>"
-                                            onclick="event.preventDefault(); window.openPhotoWindow('<?= htmlspecialchars($secureReceiptUrl) ?>');"
-                                            class="btn btn-sm btn-outline-info fw-bold shadow-sm me-1"
-                                            title="View Proof of Receipt">
-                                            <i class="bi bi-paperclip"></i> <span class="ms-1">Receipt</span>
-                                        </a>
-                                    <?php endif; ?>
-
                                     <?php if (in_array($role, ['admin', 'management', 'purchasing', 'warehouse']) && in_array($po['status'], ['Delivered (Discrepancy)', 'Partially Delivered', 'Partially Received'])):
-                                        $receiptFile = !empty($po['proof_of_receipt']) ? basename($po['proof_of_receipt']) : '';
-                                        $secureReceiptUrl = $receiptFile ? ('secure-image?type=receipts&file=' . urlencode($receiptFile)) : '';
                                         $isPartial = in_array($po['status'], ['Partially Delivered', 'Partially Received']);
                                         $btnClass = $isPartial ? 'btn-outline-warning text-dark' : 'btn-danger';
                                         $btnIcon = $isPartial ? 'bi-clock-history' : 'bi-search';
@@ -637,10 +646,92 @@ include 'layout/header.php';
                                         </button>
                                     <?php endif; ?>
 
-                                    <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm"
+                                    <?php if ($po['status'] === 'Cancelled'): ?>
+                                        <!-- VIEW CANCELLATION AUDIT LOG -->
+                                        <button type="button" class="btn btn-sm btn-outline-dark fw-bold shadow-sm me-1"
+                                            title="View Cancellation Audit Log" 
+                                            data-pono="<?= htmlspecialchars($po['po_no']) ?>"
+                                            data-poid="<?= (int)$po['id'] ?>"
+                                            data-status="<?= htmlspecialchars($po['status']) ?>"
+                                            data-remarks="<?= htmlspecialchars($po['delay_remarks'] ?? 'No cancellation remarks recorded.') ?>"
+                                            data-proof="" 
+                                            onclick="viewDiscrepancy(this)">
+                                            <i class="bi bi-file-earmark-medical"></i> <span class="ms-1">Audit Log</span>
+                                        </button>
+                                    <?php endif; ?>
+
+                                    <?php if (!empty($secureReceiptUrl) && in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)'])): ?>
+                                        <a href="<?= htmlspecialchars($secureReceiptUrl) ?>"
+                                            onclick="event.preventDefault(); window.openPhotoWindow('<?= htmlspecialchars($secureReceiptUrl) ?>');"
+                                            class="btn btn-sm btn-outline-info fw-bold shadow-sm me-1"
+                                            title="View Proof of Receipt">
+                                            <i class="bi bi-paperclip"></i> <span class="ms-1">Receipt</span>
+                                        </a>
+                                    <?php endif; ?>
+
+                                    <!-- PRINT PO BUTTON -->
+                                    <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm me-1"
                                         title="View/Print Virtual PO Document" onclick="openPoPrintModal(<?= $po['id'] ?>)">
                                         <i class="bi bi-printer"></i> <span class="ms-1">Print</span>
                                     </button>
+
+                                    <!-- 3-DOTS MORE LOGISTICS ACTIONS DROPDOWN -->
+                                    <div class="dropdown d-inline-block">
+                                        <button type="button" 
+                                            class="btn btn-sm btn-outline-secondary fw-bold shadow-sm px-2"
+                                            data-bs-toggle="dropdown" 
+                                            aria-expanded="false"
+                                            title="More Actions">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="font-size: 0.85rem; min-width: 205px; border-radius: 10px; z-index: 1060;">
+                                            <li class="dropdown-header text-uppercase text-muted fw-bold py-1 px-3" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                                                <i class="bi bi-gear me-1"></i> Order Options
+                                            </li>
+                                            <li>
+                                                <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                                    onclick="openPoPrintModal(<?= $po['id'] ?>)">
+                                                    <i class="bi bi-printer text-secondary fs-6" style="width: 18px;"></i>
+                                                    <span>Print PO Manifest</span>
+                                                </button>
+                                            </li>
+                                            <?php if ($canManageLogistics): ?>
+                                                <li>
+                                                    <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                                        onclick="openViberPreviewModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', <?= (int) $po['supplier_id'] ?>, '<?= htmlspecialchars($po['contact_number'] ?? '', ENT_QUOTES) ?>')">
+                                                        <i class="fa-brands fa-viber fs-6" style="color: #7360f2; width: 18px;"></i>
+                                                        <span>Send via Viber</span>
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                                        onclick="openDelayModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', '<?= htmlspecialchars($po['expected_delivery_date'] ?? '', ENT_QUOTES) ?>')">
+                                                        <i class="bi bi-cloud-lightning-rain-fill text-warning fs-6" style="width: 18px;"></i>
+                                                        <span>Report Delay</span>
+                                                    </button>
+                                                </li>
+                                            <?php endif; ?>
+                                            <?php if (!empty($secureReceiptUrl)): ?>
+                                                <li>
+                                                    <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="<?= htmlspecialchars($secureReceiptUrl) ?>"
+                                                        onclick="event.preventDefault(); window.openPhotoWindow('<?= htmlspecialchars($secureReceiptUrl) ?>');">
+                                                        <i class="bi bi-paperclip text-info fs-6" style="width: 18px;"></i>
+                                                        <span>View Receipt</span>
+                                                    </a>
+                                                </li>
+                                            <?php endif; ?>
+                                            <?php if ($canManageLogistics): ?>
+                                                <li><hr class="dropdown-divider my-1"></li>
+                                                <li>
+                                                    <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 text-danger"
+                                                        onclick="openCancelPoModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', '<?= htmlspecialchars($po['company_name'] ?? '', ENT_QUOTES) ?>', '<?= htmlspecialchars($po['rs_no'] ?? '', ENT_QUOTES) ?>')">
+                                                        <i class="bi bi-slash-circle fs-6 text-danger" style="width: 18px;"></i>
+                                                        <span class="fw-semibold">Void / Cancel PO</span>
+                                                    </button>
+                                                </li>
+                                            <?php endif; ?>
+                                        </ul>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -2207,6 +2298,133 @@ include 'layout/header.php';
         alert("PO details copied to clipboard!\nOpening Viber Desktop for " + cleanPhone + "...\n\nPress Ctrl + V in Viber to paste your order.");
 
         window.location.href = "viber://chat?number=" + encodeURIComponent(cleanPhone);
+    };
+
+    // ==========================================
+    // CANCEL / VOID PURCHASE ORDER AJAX SUBMISSION
+    // ==========================================
+    window.handleCancelPoSubmit = async function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+
+        const form = document.getElementById('cancelPoForm');
+        if (!form) return;
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const poId = document.getElementById('cancelPoId').value;
+        const poNo = document.getElementById('cancelPoNoDisplay').value;
+        const reason = document.getElementById('cancelPoReason').value;
+        const notes = document.getElementById('cancelPoNotes').value;
+        const submitBtn = document.getElementById('confirmCancelPoBtn');
+        const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+
+        if (!reason) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Reason Required',
+                    text: 'Please select a reason for voiding this Purchase Order.'
+                });
+            } else {
+                alert('Please select a reason for voiding this Purchase Order.');
+            }
+            return;
+        }
+
+        // Confirmation dialog before taking destructive action
+        let confirmResult = false;
+        if (typeof Swal !== 'undefined') {
+            const res = await Swal.fire({
+                title: 'Void this Purchase Order?',
+                html: `Are you sure you want to void <strong>${poNo}</strong>?<br><br><span class="text-danger small"><i class="bi bi-info-circle me-1"></i>Linked Requisition will be restored to Approved status for re-issuing.</span>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: '<i class="bi bi-slash-circle me-1"></i> Yes, Void Order',
+                cancelButtonText: 'Keep Order Active'
+            });
+            confirmResult = res.isConfirmed;
+        } else {
+            confirmResult = confirm(`Are you sure you want to void Purchase Order ${poNo}? Linked Requisition will be restored to Approved.`);
+        }
+
+        if (!confirmResult) return;
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Voiding Order...';
+        }
+
+        const formData = new FormData(form);
+        formData.append('action', 'cancel_po');
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const headers = {};
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken;
+        }
+
+        try {
+            const response = await fetch('process/process.php', {
+                method: 'POST',
+                body: formData,
+                headers: headers
+            });
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                const modalEl = document.getElementById('cancelPoModal');
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) modalInstance.hide();
+
+                if (typeof Swal !== 'undefined') {
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Purchase Order Voided',
+                        text: result.message || 'Purchase Order voided successfully.',
+                        confirmButtonColor: '#0033cc'
+                    });
+                } else {
+                    alert(result.message || 'Purchase Order voided successfully.');
+                }
+                window.location.reload();
+            } else {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Cancellation Failed',
+                        text: result.message || 'Could not cancel Purchase Order.',
+                        confirmButtonColor: '#dc3545'
+                    });
+                } else {
+                    alert(result.message || 'Could not cancel Purchase Order.');
+                }
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            }
+        } catch (err) {
+            console.error('Error voiding PO:', err);
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'An unexpected network error occurred while voiding the Purchase Order. Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
+            } else {
+                alert('An unexpected network error occurred. Please try again.');
+            }
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
+            }
+        }
     };
 
     window.initPoModalEvents = function () {
