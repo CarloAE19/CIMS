@@ -406,6 +406,15 @@ if (!empty($ref)) {
                                     <?php if (!empty($document['received_by_name'])): ?>
                                         <small class="text-muted d-block mt-0.5" style="font-size: 0.72rem;">Intake by: <?= htmlspecialchars($document['received_by_name']) ?> &bull; Partial delivery / issue noted</small>
                                     <?php endif; ?>
+                                <?php elseif (in_array($document['status'], ['Partially Delivered', 'Partially Received'])): ?>
+                                    <div>
+                                        <span class="badge bg-warning text-dark border px-2 py-1" style="font-size: 0.75rem;">
+                                            <i class="bi bi-pie-chart-fill text-dark me-1"></i> Partially Delivered (Remaining Items to Follow)
+                                        </span>
+                                    </div>
+                                    <?php if (!empty($document['received_by_name'])): ?>
+                                        <small class="text-muted d-block mt-0.5" style="font-size: 0.72rem;">Intake by: <?= htmlspecialchars($document['received_by_name']) ?> &bull; Batch received into Master Inventory</small>
+                                    <?php endif; ?>
                                 <?php elseif ($document['status'] === 'Delivered'): ?>
                                     <div class="fw-bold text-success d-flex align-items-center gap-1">
                                         <i class="bi bi-check-circle-fill"></i> Delivered & Received at Warehouse
