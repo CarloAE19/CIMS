@@ -371,37 +371,73 @@ $approvedRS = $pdo->query("
 </div>
 
 <!-- ==========================================
-  4. MODAL: VIEW DISCREPANCY DETAILS
+  4. MODAL: VIEW DELIVERY INTAKE & DISCREPANCY LOG
 =========================================== -->
 <div class="modal fade" id="discrepancyModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
-        <div class="modal-content border-0 shadow-lg border-top border-danger border-4">
-            <div class="modal-header bg-white">
-                <h5 class="modal-title text-danger fw-bold"><i
-                        class="bi bi-exclamation-octagon-fill me-2"></i>Discrepancy Log</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content border-0 shadow-lg" id="discModalCard" style="border-top: 4px solid #ffc107 !important;">
+            <div class="modal-header bg-white border-bottom py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <div id="discModalIconWrap" class="rounded-circle p-2 bg-warning-subtle text-warning d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <i class="bi bi-clock-history fs-5" id="discModalIcon"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="discModalTitle">Delivery Intake & Audit History</h5>
+                        <small class="text-muted" id="discModalSubtitle">Multi-Stage Fulfillment & Discrepancy Timeline</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-4 bg-light">
-                <div class="d-flex justify-content-between align-items-center pb-3 border-bottom mb-3">
-                    <span class="text-muted fw-bold text-uppercase small"><i
-                            class="bi bi-file-earmark-text me-1"></i>Purchase Order</span>
-                    <span id="discPoNo"
-                        class="fw-bold text-dark fs-6 bg-white px-3 py-1 rounded shadow-sm border"></span>
+            <div class="modal-body p-3 p-md-4 bg-light">
+                <!-- PO Header Summary Card -->
+                <div class="card border-0 shadow-sm bg-white mb-3 p-3 rounded-3">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <span class="text-muted small fw-bold text-uppercase d-block mb-1">
+                                <i class="bi bi-file-earmark-text me-1 text-primary"></i>Purchase Order
+                            </span>
+                            <span id="discPoNo" class="fw-bold font-monospace text-primary fs-6 bg-light px-3 py-1 rounded border"></span>
+                        </div>
+                        <div class="text-end">
+                            <span class="text-muted small fw-bold text-uppercase d-block mb-1">Order Status</span>
+                            <span id="discPoStatusBadge" class="badge px-3 py-1.5 shadow-sm text-uppercase"></span>
+                        </div>
+                    </div>
                 </div>
 
-                <h6 class="fw-bold text-secondary mb-2 small text-uppercase pb-1">Activity & Log Details</h6>
-                <div class="p-3 bg-white border border-danger border-opacity-25 rounded shadow-sm"
-                    style="max-height: 300px; overflow-y: auto;">
-                    <div id="discRemarks" class="text-dark"
-                        style="font-size: 0.95rem; white-space: pre-wrap; line-height: 1.7;"></div>
+                <!-- Timeline Header & Batch Count -->
+                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                    <h6 class="fw-bold text-secondary text-uppercase small mb-0">
+                        <i class="bi bi-activity me-1 text-primary"></i> Intake Batches & Discrepancy Records
+                    </h6>
+                    <span id="discBatchCountBadge" class="badge bg-secondary-subtle text-secondary px-2 py-1"></span>
                 </div>
+
+                <!-- Structured Timeline Cards Container -->
+                <div id="discTimelineContainer" class="d-flex flex-column gap-3 mb-3">
+                    <!-- Populated dynamically via JS -->
+                </div>
+
+                <!-- Attached Proof of Receipt -->
                 <div id="discProofContainer" class="mt-3 d-none">
-                    <!-- Proof of receipt link dynamically injected -->
+                    <!-- Proof link injected here -->
+                </div>
+
+                <!-- Collapsible Raw Audit Log -->
+                <div class="mt-3 pt-2 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none small" type="button" data-bs-toggle="collapse" data-bs-target="#discRawLogCollapse" aria-expanded="false">
+                            <i class="bi bi-code-square me-1"></i> <span id="discRawToggleText">View Raw System Log</span>
+                        </button>
+                    </div>
+                    <div class="collapse mt-2" id="discRawLogCollapse">
+                        <div class="p-3 bg-white border rounded shadow-sm font-monospace text-muted small" style="max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-size: 0.78rem;" id="discRawLog"></div>
+                    </div>
                 </div>
             </div>
-            <div class="modal-footer bg-light border-0">
-                <button type="button" class="btn btn-secondary fw-bold px-4 shadow-sm"
-                    data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer justify-content-between bg-white border-top py-2 px-3">
+                <button type="button" class="btn btn-light text-muted fw-bold px-4" data-bs-dismiss="modal">Close</button>
+                <div id="discActionButtons"></div>
             </div>
         </div>
     </div>
