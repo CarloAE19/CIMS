@@ -253,7 +253,11 @@ window.openApproveItemsModal = function(rsId, rsNo, itemsB64) {
                     <div class="card-body py-3 px-3">
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                             <div class="flex-grow-1 me-3">
-                                <div class="fw-bold text-dark fs-6">${rawName} ${newBadge}</div>
+                                <div class="fw-bold text-dark fs-6 d-flex align-items-center flex-wrap gap-1">
+                                    <span>${rawName}</span>
+                                    ${newBadge}
+                                    <span class="badge bg-light text-muted border item-decision-pill ms-auto" style="font-size:0.7rem;"><i class="bi bi-question-circle me-1"></i>Decision Required</span>
+                                </div>
                                 <div class="text-muted small mt-1">
                                     <span class="badge bg-light text-dark border me-1">${item.item_code}</span>
                                     <span>Quantity: <strong>${qty} ${unit}</strong></span>
@@ -262,7 +266,7 @@ window.openApproveItemsModal = function(rsId, rsNo, itemsB64) {
                                 ${typoEditHtml}
                             </div>
                             <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                <input type="radio" class="btn-check" name="item_statuses[${itemId}]" id="approve_${itemId}" value="Approved" required checked>
+                                <input type="radio" class="btn-check" name="item_statuses[${itemId}]" id="approve_${itemId}" value="Approved" required>
                                 <label class="btn btn-outline-success fw-bold px-3" for="approve_${itemId}"><i class="bi bi-check-lg me-1"></i>Approve</label>
                                 <input type="radio" class="btn-check" name="item_statuses[${itemId}]" id="reject_${itemId}" value="Rejected">
                                 <label class="btn btn-outline-danger fw-bold px-3" for="reject_${itemId}"><i class="bi bi-x-lg me-1"></i>Reject</label>
@@ -275,16 +279,29 @@ window.openApproveItemsModal = function(rsId, rsNo, itemsB64) {
                 </div>`;
             }).join('');
 
-            // Dynamic remark field styling based on approve/reject selection
+            // Dynamic remark field & card styling based on approve/reject selection
             list.querySelectorAll('input[type="radio"]').forEach(radio => {
                 radio.addEventListener('change', function() {
                     const card = this.closest('.approve-item-card');
                     const remarkInput = card.querySelector('.remark-field input');
+                    const pill = card.querySelector('.item-decision-pill');
                     if (this.value === 'Rejected') {
+                        card.classList.remove('border-success-subtle');
+                        card.classList.add('border-danger-subtle');
+                        if (pill) {
+                            pill.className = 'badge bg-danger text-white shadow-sm ms-auto item-decision-pill';
+                            pill.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i>Rejected';
+                        }
                         remarkInput.classList.add('border-danger');
                         remarkInput.placeholder = 'Reason for rejection (required)...';
                         remarkInput.required = true;
-                    } else {
+                    } else if (this.value === 'Approved') {
+                        card.classList.remove('border-danger-subtle');
+                        card.classList.add('border-success-subtle');
+                        if (pill) {
+                            pill.className = 'badge bg-success text-white shadow-sm ms-auto item-decision-pill';
+                            pill.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Approved';
+                        }
                         remarkInput.classList.remove('border-danger');
                         remarkInput.placeholder = 'Remark (optional)...';
                         remarkInput.required = false;
@@ -1729,6 +1746,14 @@ function initializeRequisitionsPage() {
             const originalText = submitBtn ? submitBtn.innerHTML : '<i class="bi bi-send me-2"></i>Submit Decision';
 
             if (!approveForm.checkValidity()) {
+                const unselectedCard = Array.from(approveForm.querySelectorAll('.approve-item-card')).find(card => {
+                    return !card.querySelector('input[type="radio"]:checked');
+                });
+                if (unselectedCard) {
+                    unselectedCard.classList.add('border-warning', 'border-2', 'shadow');
+                    unselectedCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => unselectedCard.classList.remove('border-warning', 'border-2', 'shadow'), 3000);
+                }
                 approveForm.reportValidity();
                 return;
             }
@@ -1750,7 +1775,18 @@ function initializeRequisitionsPage() {
                     headers: headers
                 });
 
-                const result = await response.json();
+                const rawText = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(rawText);
+                } catch (jsonErr) {
+                    console.error('Non-JSON server response in approveItemsForm:', rawText);
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = rawText;
+                    const cleanText = (tempDiv.textContent || tempDiv.innerText || rawText).trim();
+                    throw new Error(cleanText.substring(0, 250) || 'Server returned an invalid response.');
+                }
+
                 const isSuccess = result.status === 'success' || result.success === true || (result.status && result.status.toLowerCase() === 'ok');
 
                 if (isSuccess) {
