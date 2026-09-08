@@ -376,7 +376,7 @@
 </div>
 
 <!-- Include SMS Inbox Modal -->
-<?php include_once __DIR__ . '/../components/sms_inbox_modal.php'; ?>
+<?php if (file_exists(__DIR__ . '/../components/sms_inbox_modal.php')) include_once __DIR__ . '/../components/sms_inbox_modal.php'; ?>
 <!-- Include Requisition Slips Modal Globally -->
 <?php include_once __DIR__ . '/../components/requisition_modals.php'; ?>
 <!-- Include PO, Withdrawal & Item Quick View Modals Globally -->
@@ -385,6 +385,14 @@
 <script src="assets/js/chatbot.js?v=<?= time() ?>"></script>
 
 <script>
+// Helper to safely escape HTML entities
+function escapeSmsHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // ==========================================
 // DEDICATED SUPPLY LOGISTICS UPDATES JS
 // ==========================================
@@ -485,42 +493,67 @@ return;
 
 let html = '';
 items.forEach(item => {
-const isUnread = item.is_read === 0 || item.category === 'arriving_today' || item.category === 'overdue';
-const bgClass = isUnread ? 'bg-light border-start border-4 border-primary' : 'bg-white';
+    let borderClass = 'border-start border-3 border-primary bg-white';
+    let badgeText = item.category ? item.category.replace('_', ' ').toUpperCase() : 'SUPPLY';
 
-let actionBtn = '';
-if (item.type === 'supply_eta') {
-actionBtn = `<a href="po" class="btn btn-xs btn-outline-primary py-0 px-2 fw-bold mt-1" style="font-size:0.7rem;"><i
-        class="bi bi-box-arrow-up-right me-1"></i>View PO</a>`;
-if (item.po_id && ['purchasing', 'admin'].includes(window.currentUserRole)) {
-actionBtn += ` <button type="button"
-    class="btn btn-xs btn-link text-primary py-0 px-1 fw-bold mt-1 text-decoration-none" style="font-size:0.7rem;"
-    onclick="openEditEtaModal(${item.po_id}, '${item.po_no}', '')"><i class="bi bi-pencil-square me-1"></i>Edit
-    ETA</button>`;
-}
-} else if (item.type === 'sms_reply') {
-actionBtn = `
-<button type="button" class="btn btn-xs btn-primary py-0 px-2 fw-bold mt-1 me-1" style="font-size:0.7rem;"
-    onclick="openSmsInboxModal()"><i class="bi bi-chat-dots me-1"></i>Reply SMS</button>
-`;
-}
+    if (item.category === 'overdue') {
+        borderClass = 'border-start border-3 border-danger bg-danger-subtle bg-opacity-10';
+        badgeText = 'OVERDUE';
+    } else if (item.category === 'arriving_today') {
+        borderClass = 'border-start border-3 border-warning bg-warning-subtle bg-opacity-10';
+        badgeText = 'ARRIVING TODAY';
+    } else if (item.category === 'on_track') {
+        borderClass = 'border-start border-3 border-primary bg-white';
+        badgeText = 'SCHEDULED';
+    }
 
-html += `
-<div class="p-3 border-bottom ${bgClass} transition-all">
-    <div class="d-flex align-items-start justify-content-between">
-        <div class="d-flex align-items-center mb-1">
-            <span class="badge ${item.badge_class} me-2" style="font-size:0.65rem;">
-                <i class="bi ${item.icon} me-1"></i>${item.category ? item.category.replace('_', ' ').toUpperCase() :
-                'SUPPLY'}
-            </span>
-            <strong class="text-dark small" style="font-size:0.82rem;">${escapeSmsHtml(item.title)}</strong>
+    let actionBtn = '';
+    if (item.type === 'supply_eta') {
+        actionBtn = `
+        <div class="d-flex align-items-center gap-2 mt-2 pt-1 border-top border-light">
+            <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-bold text-nowrap" style="font-size:0.75rem;"
+                onclick="if (typeof openPoModalByNo === 'function') { openPoModalByNo('${escapeSmsHtml(item.po_no)}'); } else { window.location.href='po?search=${encodeURIComponent(item.po_no)}'; }"
+                title="Preview PO Details">
+                <i class="bi bi-file-earmark-text me-1"></i>Quick View
+            </button>`;
+        if (item.po_id && ['purchasing', 'admin'].includes(window.currentUserRole)) {
+            actionBtn += `
+            <button type="button" class="btn btn-sm btn-light border py-1 px-2 fw-bold text-dark text-nowrap" style="font-size:0.75rem;"
+                onclick="openEditEtaModal(${item.po_id}, '${escapeSmsHtml(item.po_no)}', '${escapeSmsHtml(item.expected_delivery_date || '')}')"
+                title="Update Target Delivery Date">
+                <i class="bi bi-pencil-square text-primary me-1"></i>Edit ETA
+            </button>`;
+        }
+        actionBtn += `
+            <a href="po?search=${encodeURIComponent(item.po_no)}" class="btn btn-sm btn-link text-muted p-0 ms-auto text-decoration-none" style="font-size:0.72rem;" title="Go to PO management">
+                Manage <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>`;
+    } else if (item.type === 'sms_reply') {
+        actionBtn = `
+        <div class="mt-2 pt-1 border-top border-light">
+            <button type="button" class="btn btn-sm btn-primary py-1 px-2 fw-bold" style="font-size:0.75rem;"
+                onclick="if (typeof openSmsInboxModal === 'function') openSmsInboxModal();">
+                <i class="bi bi-chat-dots me-1"></i>Reply SMS
+            </button>
+        </div>`;
+    }
+
+    html += `
+    <div class="p-3 border-bottom ${borderClass} transition-all">
+        <div class="d-flex align-items-start justify-content-between mb-1">
+            <div class="d-flex align-items-center flex-wrap gap-1">
+                <span class="badge ${item.badge_class}" style="font-size:0.65rem;">
+                    <i class="bi ${item.icon} me-1"></i>${badgeText}
+                </span>
+                <strong class="text-dark" style="font-size:0.83rem;">${escapeSmsHtml(item.title)}</strong>
+            </div>
+            <small class="badge bg-light text-secondary border text-nowrap ms-2" style="font-size:0.68rem;">${escapeSmsHtml(item.time_ago)}</small>
         </div>
-        <small class="text-muted text-nowrap ms-2" style="font-size:0.68rem;">${item.time_ago}</small>
+        <p class="mb-1 text-secondary" style="font-size:0.78rem; line-height: 1.4;">${escapeSmsHtml(item.message)}</p>
+        ${actionBtn}
     </div>
-    <p class="mb-1 text-secondary" style="font-size:0.78rem; line-height: 1.35;">${escapeSmsHtml(item.message)}</p>
-    ${actionBtn}
-</div>
-`;
+    `;
 });
 
 container.innerHTML = html;
@@ -528,10 +561,10 @@ container.innerHTML = html;
 
 // Poll for supply updates every 25 seconds
 document.addEventListener('DOMContentLoaded', () => {
-loadSmsThreads();
-loadSupplyUpdates();
-setInterval(loadSmsThreads, 30000);
-setInterval(loadSupplyUpdates, 25000);
+    if (typeof loadSmsThreads === 'function') loadSmsThreads();
+    loadSupplyUpdates();
+    if (typeof loadSmsThreads === 'function') setInterval(loadSmsThreads, 30000);
+    setInterval(loadSupplyUpdates, 25000);
 });
 </script>
 <!-- ======================================================== -->
