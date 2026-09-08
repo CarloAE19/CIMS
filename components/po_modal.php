@@ -569,6 +569,7 @@ $approvedRS = $pdo->query("
     </div>
 </div>
 
+<?php if (!defined('CIMS_EDIT_ETA_MODAL_LOADED')): define('CIMS_EDIT_ETA_MODAL_LOADED', true); ?>
 <!-- ==========================================
   MODAL: UPDATE PO ETA (Warehouse Delivery Target)
 =========================================== -->
@@ -613,6 +614,7 @@ $approvedRS = $pdo->query("
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- ==========================================
   6. MODAL: VIRTUAL PURCHASE ORDER PAPER & PRINT VIEW
