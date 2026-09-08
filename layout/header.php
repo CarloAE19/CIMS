@@ -502,7 +502,7 @@ foreach ($notifications as $n) {
                             </a>
 
                             <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 notif-menu p-0"
-                                aria-labelledby="dropdownNotif" style="width: 340px; max-width: 90vw;">
+                                aria-labelledby="dropdownNotif" style="width: 360px; max-width: 92vw;">
                                 <li>
                                     <div
                                         class="p-3 bg-dark text-white rounded-top-3 d-flex justify-content-between align-items-center">
@@ -515,17 +515,60 @@ foreach ($notifications as $n) {
                                             </div>
                                         </div>
                                         <?php if ($unreadCount > 0): ?>
-                                            <button
+                                            <button id="markAllNotifsBtn"
                                                 class="btn btn-sm btn-link text-white-50 text-decoration-none p-0 fw-bold"
                                                 onclick="markAllNotifsRead()" style="font-size: 0.75rem;"><i
                                                     class="bi bi-check2-all me-1"></i>Mark read</button>
                                         <?php endif; ?>
                                     </div>
                                 </li>
-                                <div style="max-height: 350px; overflow-y: auto;">
+                                <div style="max-height: 360px; overflow-y: auto;" id="systemNotifsList">
                                     <?php if (count($notifications) > 0): ?>
                                         <?php foreach ($notifications as $notif):
                                             $titleLower = strtolower($notif['title']);
+                                            $msgLower = strtolower($notif['message']);
+
+                                            $categoryTag = 'NOTICE';
+                                            $badgeClass = 'bg-primary';
+                                            $icon = 'bi-bell-fill';
+                                            $borderAccent = 'border-primary';
+                                            $bgTint = 'bg-white';
+
+                                            if (strpos($titleLower, 'discrepancy') !== false || strpos($titleLower, 'sold out') !== false || strpos($titleLower, 'reject') !== false || strpos($titleLower, 'cancel') !== false) {
+                                                $categoryTag = 'ALERT';
+                                                $badgeClass = 'bg-danger';
+                                                $icon = 'bi-exclamation-triangle-fill';
+                                                $borderAccent = 'border-danger';
+                                                $bgTint = 'bg-danger-subtle bg-opacity-10';
+                                            } elseif (strpos($titleLower, 'approved') !== false || strpos($titleLower, 'completed') !== false || strpos($titleLower, 'released') !== false || (strpos($titleLower, 'delivered') !== false && strpos($titleLower, 'partial') === false)) {
+                                                $categoryTag = 'APPROVED';
+                                                $badgeClass = 'bg-success';
+                                                $icon = 'bi-check-circle-fill';
+                                                $borderAccent = 'border-success';
+                                                $bgTint = 'bg-success-subtle bg-opacity-10';
+                                            } elseif (strpos($titleLower, 'partial') !== false || strpos($titleLower, 'pending') !== false || strpos($titleLower, 'delay') !== false || strpos($titleLower, 'stage') !== false) {
+                                                $categoryTag = 'PENDING';
+                                                $badgeClass = 'bg-warning text-dark';
+                                                $icon = 'bi-hourglass-split';
+                                                $borderAccent = 'border-warning';
+                                                $bgTint = 'bg-warning-subtle bg-opacity-10';
+                                            } elseif (strpos($titleLower, 'audit') !== false) {
+                                                $categoryTag = 'AUDIT';
+                                                $badgeClass = 'bg-info text-dark';
+                                                $icon = 'bi-clipboard-check';
+                                                $borderAccent = 'border-info';
+                                                $bgTint = 'bg-info-subtle bg-opacity-10';
+                                            } elseif (strpos($titleLower, 'po ') !== false || strpos($titleLower, 'supply') !== false) {
+                                                $categoryTag = 'SUPPLY';
+                                                $badgeClass = 'bg-primary';
+                                                $icon = 'bi-truck';
+                                                $borderAccent = 'border-primary';
+                                                $bgTint = 'bg-white';
+                                            }
+
+                                            $isUnread = ((int) $notif['is_read'] === 0);
+                                            $cardBorder = $isUnread ? "border-start border-3 {$borderAccent} {$bgTint}" : "bg-white";
+
                                             $targetLink = 'index';
                                             if (strpos($titleLower, 'requisition') !== false || strpos($titleLower, 'ready for po') !== false) {
                                                 $targetLink = 'requisitions';
@@ -534,27 +577,57 @@ foreach ($notifications as $n) {
                                             } elseif (strpos($titleLower, 'audit') !== false) {
                                                 $targetLink = 'audit';
                                             }
-                                            $bgClass = $notif['is_read'] == 0 ? 'bg-light border-start border-primary border-4' : 'bg-white';
-                                            $iconClass = $notif['is_read'] == 0 ? 'text-primary font-semibold' : 'text-muted';
+
+                                            $extractedPo = null;
+                                            $extractedRs = null;
+                                            if (preg_match('/(PO-\d{8}-\d+)/i', $notif['title'] . ' ' . $notif['message'], $poMatches)) {
+                                                $extractedPo = strtoupper($poMatches[1]);
+                                                $targetLink = "po?search=" . urlencode($extractedPo);
+                                            } elseif (preg_match('/(RS-\d{4}-\d+)/i', $notif['title'] . ' ' . $notif['message'], $rsMatches)) {
+                                                $extractedRs = strtoupper($rsMatches[1]);
+                                                $targetLink = "requisitions?search=" . urlencode($extractedRs);
+                                            }
                                             ?>
-                                            <li>
-                                                <a class="dropdown-item py-3 border-bottom <?= $bgClass ?>"
-                                                    href="<?= $targetLink ?>" style="white-space: normal;">
-                                                    <div class="d-flex w-100 justify-content-between align-items-start mb-1">
-                                                        <strong class="mb-0 <?= $iconClass ?>"
-                                                            style="font-size: 0.85rem;"><?= htmlspecialchars($notif['title']) ?></strong>
-                                                        <small class="text-muted text-nowrap ms-2"
-                                                            style="font-size: 0.68rem;"><?= time_elapsed_string($notif['created_at']) ?></small>
+                                            <li class="system-notif-item p-3 border-bottom <?= $cardBorder ?> transition-all" data-notif-id="<?= (int)$notif['id'] ?>" data-read="<?= $isUnread ? '0' : '1' ?>">
+                                                <div class="d-flex align-items-start justify-content-between mb-1">
+                                                    <div class="d-flex align-items-center flex-wrap gap-1">
+                                                        <span class="badge <?= $badgeClass ?>" style="font-size: 0.65rem;">
+                                                            <i class="bi <?= $icon ?> me-1"></i><?= $categoryTag ?>
+                                                        </span>
+                                                        <strong class="text-dark" style="font-size: 0.83rem;"><?= htmlspecialchars($notif['title']) ?></strong>
                                                     </div>
-                                                    <p class="mb-0 text-muted" style="font-size: 0.78rem; line-height: 1.35;">
-                                                        <?= htmlspecialchars($notif['message']) ?></p>
-                                                </a>
+                                                    <small class="badge bg-light text-secondary border text-nowrap ms-2" style="font-size: 0.68rem;"><?= time_elapsed_string($notif['created_at']) ?></small>
+                                                </div>
+                                                <p class="mb-1 text-secondary" style="font-size: 0.78rem; line-height: 1.4;">
+                                                    <?= nl2br(htmlspecialchars($notif['message'])) ?>
+                                                </p>
+                                                <div class="d-flex align-items-center gap-2 mt-2 pt-1 border-top border-light">
+                                                    <?php if ($extractedPo): ?>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-bold text-nowrap" style="font-size: 0.72rem;"
+                                                            onclick="event.stopPropagation(); markSingleNotifRead(<?= (int)$notif['id'] ?>, this); if (typeof openPoModalByNo === 'function') { openPoModalByNo('<?= htmlspecialchars($extractedPo, ENT_QUOTES) ?>'); } else { window.location.href='po?search=<?= urlencode($extractedPo) ?>'; }"
+                                                            title="Preview <?= htmlspecialchars($extractedPo) ?>">
+                                                            <i class="bi bi-file-earmark-text me-1"></i>Quick View
+                                                        </button>
+                                                    <?php elseif ($extractedRs): ?>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-bold text-nowrap" style="font-size: 0.72rem;"
+                                                            onclick="event.stopPropagation(); markSingleNotifRead(<?= (int)$notif['id'] ?>, this); if (typeof openRsModalByNo === 'function') { openRsModalByNo('<?= htmlspecialchars($extractedRs, ENT_QUOTES) ?>'); } else { window.location.href='requisitions?search=<?= urlencode($extractedRs) ?>'; }"
+                                                            title="Preview <?= htmlspecialchars($extractedRs) ?>">
+                                                            <i class="bi bi-file-earmark-text me-1"></i>Quick View
+                                                        </button>
+                                                    <?php endif; ?>
+                                                    <a href="<?= $targetLink ?>" onclick="markSingleNotifRead(<?= (int)$notif['id'] ?>, this)"
+                                                        class="btn btn-sm btn-link text-muted p-0 ms-auto text-decoration-none" style="font-size: 0.72rem;"
+                                                        title="Open in module">
+                                                        Open <i class="bi bi-arrow-right"></i>
+                                                    </a>
+                                                </div>
                                             </li>
                                         <?php endforeach; ?>
                                     <?php else: ?>
-                                        <li><span class="dropdown-item text-muted small text-center py-4"><i
-                                                    class="bi bi-bell-slash d-block fs-3 mb-2 opacity-50"></i>No new system
-                                                notifications.</span></li>
+                                        <li class="p-4 text-center text-muted small">
+                                            <i class="bi bi-bell-slash d-block fs-3 mb-2 opacity-50"></i>
+                                            No new system notifications.
+                                        </li>
                                     <?php endif; ?>
                                 </div>
                             </ul>
