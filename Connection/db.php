@@ -550,6 +550,9 @@ try {
         $pdo->exec("ALTER TABLE po_items ADD COLUMN item_status VARCHAR(50) NOT NULL DEFAULT 'Pending'");
     } catch (PDOException $e) {}
     try {
+        $pdo->exec("ALTER TABLE purchase_orders ADD COLUMN payment_terms VARCHAR(100) DEFAULT 'Credit (30 Days Net)'");
+    } catch (PDOException $e) {}
+    try {
         // Backfill historical Delivered PO items if needed
         $pdo->exec("
             UPDATE po_items pi

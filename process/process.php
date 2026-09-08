@@ -32,6 +32,7 @@ $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HT
            (in_array($action, ['live_sync', 'stock_in_scanned', 'verify_current_password', 'change_password_modal', 'submit_audit']));
 
 if ($is_ajax) {
+    ob_start();
     header('Content-Type: application/json');
 }
 
@@ -68,6 +69,9 @@ if ($requestMethod === 'POST' || (strpos($action, 'fetch_') === 0 && !empty($act
         }
     } catch (Throwable $e) {
         if ($is_ajax) {
+            if (ob_get_length()) {
+                ob_clean();
+            }
             header('Content-Type: application/json');
             echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
             exit;
