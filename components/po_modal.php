@@ -607,8 +607,8 @@ $approvedRS = $pdo->query("
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-dark text-white d-print-none">
-                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-pdf-fill me-2"
-                        style="color: var(--gb-yellow);"></i>Purchase Order Virtual Document</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-text-fill me-2"
+                        style="color: var(--gb-yellow);"></i>Purchase Order Details & Virtual Document</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 
