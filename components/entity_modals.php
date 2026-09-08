@@ -238,3 +238,187 @@ define('CIMS_ENTITY_MODALS_LOADED', true);
         </div>
     </div>
 </div>
+
+<?php if (!defined('CIMS_EDIT_ETA_MODAL_LOADED')): define('CIMS_EDIT_ETA_MODAL_LOADED', true); ?>
+<!-- ======================================================== -->
+<!-- MODAL: UPDATE PO ETA (Warehouse Delivery Target)         -->
+<!-- ======================================================== -->
+<div class="modal fade" id="editEtaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-calendar2-week me-2"
+                        style="color: var(--gb-yellow);"></i>Update Warehouse Supply ETA</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editEtaForm" onsubmit="handleUpdatePoEta(event)">
+                <div class="modal-body bg-light p-4">
+                    <?php if (function_exists('generate_csrf_token')): ?>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
+                    <?php endif; ?>
+                    <input type="hidden" id="editEtaPoId" name="po_id" value="">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Purchase Order No.</label>
+                        <input type="text" class="form-control fw-bold text-primary bg-white shadow-sm" id="editEtaPoNo"
+                            readonly>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Expected Time of Arrival
+                            (Warehouse ETA) <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control fw-bold shadow-sm" id="editEtaInputDate"
+                            name="expected_delivery_date" required>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.75rem;"><i
+                                class="bi bi-info-circle me-1"></i>Updating this ETA will alert the Warehouse In-charge
+                            & Management in real-time.</small>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between bg-white border-top-0">
+                    <button type="button" class="btn btn-light text-muted fw-bold px-4"
+                        data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm"><i
+                            class="bi bi-check2-circle me-1"></i> Save Updated ETA</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+if (typeof window.openEditEtaModal !== 'function') {
+    window.openEditEtaModal = function (id, po_no, currentEta) {
+        const idInput = document.getElementById('editEtaPoId');
+        const noInput = document.getElementById('editEtaPoNo');
+        const dateInput = document.getElementById('editEtaInputDate');
+        if (idInput) idInput.value = id;
+        if (noInput) noInput.value = po_no;
+        if (dateInput) {
+            if (currentEta) {
+                dateInput.value = currentEta;
+            } else {
+                dateInput.value = new Date().toISOString().split('T')[0];
+            }
+        }
+
+        const myModalEl = document.getElementById('editEtaModal');
+        if (myModalEl) {
+            let editEtaModal = bootstrap.Modal.getInstance(myModalEl);
+            if (!editEtaModal) editEtaModal = new bootstrap.Modal(myModalEl);
+            editEtaModal.show();
+        }
+    };
+}
+
+if (typeof window.handleUpdatePoEta !== 'function') {
+    window.handleUpdatePoEta = function (event) {
+        event.preventDefault();
+        const form = document.getElementById('editEtaForm');
+        if (!form) return;
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn ? submitBtn.innerHTML : '<i class="bi bi-check2-circle me-1"></i> Save Updated ETA';
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving ETA...';
+        }
+
+        const poId = document.getElementById('editEtaPoId')?.value || '';
+        const etaDate = document.getElementById('editEtaInputDate')?.value || '';
+
+        const formData = new FormData(form);
+        formData.append('action', 'update_po_eta');
+        formData.append('po_id', poId);
+        formData.append('expected_delivery_date', etaDate);
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        };
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken;
+        }
+
+        fetch('process/process.php', {
+            method: 'POST',
+            body: formData,
+            headers: headers
+        })
+            .then(res => res.json())
+            .then(async data => {
+                const isSuccess = data.status === 'success' || data.success === true || (data.status && data.status.toLowerCase() === 'ok');
+                if (isSuccess) {
+                    const myModalEl = document.getElementById('editEtaModal');
+                    if (myModalEl) {
+                        const editEtaModal = bootstrap.Modal.getInstance(myModalEl);
+                        if (editEtaModal) editEtaModal.hide();
+                    }
+
+                    if (typeof loadSupplyUpdates === 'function') loadSupplyUpdates();
+                    if (typeof loadCombinedAlerts === 'function') loadCombinedAlerts();
+
+                    if (typeof Swal !== 'undefined') {
+                        await Swal.fire({
+                            icon: 'success',
+                            title: 'ETA Updated!',
+                            text: data.message || 'Warehouse ETA has been successfully updated.',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    }
+
+                    if (window.location.pathname.includes('po')) {
+                        location.reload();
+                    }
+                } else {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Update Failed',
+                            text: data.message || 'Failed to update ETA.'
+                        });
+                    } else {
+                        alert(data.message || 'Failed to update ETA');
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Error updating ETA:', err);
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Network Error',
+                        text: 'Could not connect to the server to update ETA.'
+                    });
+                } else {
+                    alert('Failed to update ETA due to network error.');
+                }
+            })
+            .finally(() => {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            });
+    };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const editModalEl = document.getElementById('editEtaModal');
+    if (editModalEl) {
+        editModalEl.addEventListener('shown.bs.modal', () => {
+            const dateInput = document.getElementById('editEtaInputDate');
+            if (dateInput) dateInput.focus();
+        });
+        editModalEl.addEventListener('hidden.bs.modal', () => {
+            const form = document.getElementById('editEtaForm');
+            if (form) {
+                form.classList.remove('was-validated');
+            }
+        });
+    }
+});
+</script>
+<?php endif; ?>
