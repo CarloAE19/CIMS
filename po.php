@@ -20,6 +20,9 @@ try {
     $pdo->exec("ALTER TABLE purchase_orders ADD COLUMN delay_remarks TEXT");
     $pdo->exec("UPDATE purchase_orders SET status = 'Viber Order Sent' WHERE status = 'SMS Sent'");
     try {
+        $pdo->exec("ALTER TABLE purchase_orders ADD COLUMN payment_terms VARCHAR(100) DEFAULT 'Credit (30 Days Net)'");
+    } catch (PDOException $e) {}
+    try {
         $pdo->exec("ALTER TABLE requisitions ADD COLUMN approved_by INT NULL AFTER status");
     } catch (PDOException $e) {}
 
@@ -719,6 +722,17 @@ include 'layout/header.php';
                                         <i
                                             class="bi bi-building me-2 text-muted"></i><?= htmlspecialchars($po['company_name']) ?>
                                     </span>
+                                    <?php 
+                                    $terms = $po['payment_terms'] ?? 'Credit (30 Days Net)';
+                                    $isCredit = stripos($terms, 'Credit') !== false || stripos($terms, 'Account') !== false;
+                                    $termBadgeClass = $isCredit ? 'bg-primary-subtle text-primary border-primary-subtle' : 'bg-success-subtle text-success border-success-subtle';
+                                    $termIcon = $isCredit ? 'bi-credit-card' : 'bi-cash-stack';
+                                    ?>
+                                    <div class="mt-1">
+                                        <span class="badge <?= $termBadgeClass ?> border px-2 py-0.5 fw-semibold" style="font-size: 0.68rem;">
+                                            <i class="bi <?= $termIcon ?> me-1"></i><?= htmlspecialchars($terms) ?>
+                                        </span>
+                                    </div>
                                 </td>
 
                                 <td data-label="Status">
@@ -1811,6 +1825,10 @@ include 'layout/header.php';
                 document.getElementById('printPoDate').innerText = data.formatted_date;
                 document.getElementById('printRsNo').innerText = po.rs_no || 'N/A';
                 document.getElementById('printProjectName').innerText = po.project_name || 'Warehouse Restock';
+                const poTermsEl = document.getElementById('printPoTerms');
+                if (poTermsEl) {
+                    poTermsEl.innerText = po.payment_terms || 'Credit (30 Days Net)';
+                }
                 document.getElementById('printPoEta').innerText = data.formatted_eta;
                 document.getElementById('printPreparedBy').innerText = po.prepared_by_name || 'Purchasing Department';
                 const prepSigWrap = document.getElementById('preparedSigImgWrap');

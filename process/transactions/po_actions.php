@@ -278,6 +278,7 @@ elseif ($action === 'create_po') {
     $supplier_id = $_POST['supplier_id'];
     $prepared_by = $_SESSION['user_id'];
     $expected_delivery_date = !empty($_POST['expected_delivery_date']) ? $_POST['expected_delivery_date'] : null;
+    $payment_terms = !empty($_POST['payment_terms']) ? trim($_POST['payment_terms']) : 'Credit (30 Days Net)';
 
     try {
         $pdo->beginTransaction();
@@ -300,8 +301,8 @@ elseif ($action === 'create_po') {
         $approved_by = $rsApp['approved_by'] ?? null;
         $approved_signature = $rsApp['signature_path'] ?? null;
 
-        $stmt = $pdo->prepare("INSERT INTO purchase_orders (po_no, rs_id, supplier_id, prepared_by, prepared_signature, approved_by, approved_signature, expected_delivery_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$po_no, $rs_id, $supplier_id, $prepared_by, $prepared_signature, $approved_by, $approved_signature, $expected_delivery_date]);
+        $stmt = $pdo->prepare("INSERT INTO purchase_orders (po_no, rs_id, supplier_id, prepared_by, prepared_signature, approved_by, approved_signature, expected_delivery_date, payment_terms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$po_no, $rs_id, $supplier_id, $prepared_by, $prepared_signature, $approved_by, $approved_signature, $expected_delivery_date, $payment_terms]);
         $po_id = $pdo->lastInsertId();
 
         // Only copy items that management approved (excludes rejected items from Partially Approved RSes)

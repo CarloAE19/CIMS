@@ -129,6 +129,20 @@ $approvedRS = $pdo->query("
                     </div>
 
                     <div class="mb-3 mt-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Payment Terms <span class="text-danger">*</span></label>
+                        <select class="form-select fw-bold shadow-sm" name="payment_terms" id="poPaymentTerms" required>
+                            <option value="Credit (30 Days Net)" selected>💳 Credit (30 Days Net Terms)</option>
+                            <option value="Credit (15 Days Net)">💳 Credit (15 Days Net Terms)</option>
+                            <option value="Credit (60 Days Net)">💳 Credit (60 Days Net Terms)</option>
+                            <option value="Charge / On Account">💳 Charge / On Account</option>
+                            <option value="Cash on Delivery (COD)">💵 Cash on Delivery (COD)</option>
+                            <option value="Cash in Advance / Prepaid">💵 Cash in Advance / Prepaid</option>
+                        </select>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.75rem;"><i
+                                class="bi bi-info-circle me-1"></i>Official payment terms printed on the PO delivered to the supplier.</small>
+                    </div>
+
+                    <div class="mb-3 mt-3">
                         <label class="form-label fw-bold small text-muted text-uppercase">Expected Time of Arrival
                             (Warehouse ETA)</label>
                         <input type="date" class="form-control fw-bold shadow-sm" name="expected_delivery_date"
@@ -673,6 +687,10 @@ $approvedRS = $pdo->query("
                             <div class="text-truncate" style="font-size: 0.72rem; line-height: 1.25;">
                                 <strong>Project:</strong>
                                 <span id="printProjectName">-</span>
+                            </div>
+                            <div class="text-truncate" style="font-size: 0.72rem; line-height: 1.25;">
+                                <strong>Payment Terms:</strong>
+                                <span id="printPoTerms" class="fw-bold text-dark">-</span>
                             </div>
                             <div class="text-danger fw-bold" style="font-size: 0.72rem; line-height: 1.25;">
                                 <strong>Warehouse Target ETA:</strong> <span id="printPoEta">-</span>
