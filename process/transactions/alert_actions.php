@@ -6,6 +6,32 @@
 if ($action === 'fetch_combined_alerts') {
     header('Content-Type: application/json');
 
+    if (!function_exists('time_elapsed_string')) {
+        function time_elapsed_string($datetime, $full = false)
+        {
+            if (empty($datetime)) return 'just now';
+            try {
+                $now = new DateTime;
+                $ago = new DateTime($datetime);
+                $diff = $now->diff($ago);
+                $weeks = floor($diff->d / 7);
+                $days = $diff->d - ($weeks * 7);
+                $values = ['y' => $diff->y, 'm' => $diff->m, 'w' => $weeks, 'd' => $days, 'h' => $diff->h, 'i' => $diff->i, 's' => $diff->s];
+                $string = ['y' => 'year', 'm' => 'month', 'w' => 'week', 'd' => 'day', 'h' => 'hour', 'i' => 'minute', 's' => 'second'];
+                $parts = [];
+                foreach ($string as $k => $v) {
+                    if ($values[$k])
+                        $parts[] = $values[$k] . ' ' . $v . ($values[$k] > 1 ? 's' : '');
+                }
+                if (!$full)
+                    $parts = array_slice($parts, 0, 1);
+                return $parts ? implode(', ', $parts) . ' ago' : 'just now';
+            } catch (Exception $e) {
+                return 'recently';
+            }
+        }
+    }
+
     $userRole = $_SESSION['user_role'] ?? 'warehouse';
     $combinedAlerts = [];
     $totalUnread = 0;
@@ -37,15 +63,17 @@ if ($action === 'fetch_combined_alerts') {
         $icon = 'bi-truck';
         $category = 'on_track';
         $timeAgo = 'Scheduled';
+        $poNumber = (stripos($po['po_no'], 'PO-') === 0) ? $po['po_no'] : 'PO-' . $po['po_no'];
+        $companyName = !empty($po['company_name']) ? $po['company_name'] : 'Unknown Supplier';
 
         if (!empty($eta)) {
-            $daysDiff = (int) (strtotime($eta) - strtotime($today)) / 86400;
+            $daysDiff = (int) round((strtotime($eta) - strtotime($today)) / 86400);
             if ($daysDiff == 0) {
                 $category = 'arriving_today';
                 $badgeClass = 'bg-warning text-dark';
                 $icon = 'bi-truck-flatbed';
-                $title = "🚚 Arriving Today: PO {$po['po_no']}";
-                $message = "Supplies from {$po['company_name']} scheduled to arrive at warehouse today (" . date('M d', strtotime($eta)) . ").";
+                $title = "{$poNumber} — {$companyName}";
+                $message = "Supplies scheduled to arrive at warehouse today (" . date('M d', strtotime($eta)) . ").";
                 $timeAgo = "TODAY";
                 $totalUnread++;
             } elseif ($daysDiff < 0) {
@@ -53,27 +81,29 @@ if ($action === 'fetch_combined_alerts') {
                 $badgeClass = 'bg-danger';
                 $icon = 'bi-exclamation-triangle-fill';
                 $daysOverdue = abs((int)$daysDiff);
-                $title = "⚠️ Overdue Delivery: PO {$po['po_no']}";
-                $message = "Supply delivery from {$po['company_name']} is overdue by {$daysOverdue} day(s). Target was " . date('M d', strtotime($eta)) . ".";
-                $timeAgo = "Overdue";
+                $title = "{$poNumber} — {$companyName}";
+                $message = "Delivery from {$companyName} is overdue by {$daysOverdue} day" . ($daysOverdue > 1 ? 's' : '') . " (Target: " . date('M d, Y', strtotime($eta)) . ").";
+                $timeAgo = "{$daysOverdue}d overdue";
                 $totalUnread++;
             } else {
                 $category = 'on_track';
                 $badgeClass = 'bg-info text-dark';
                 $icon = 'bi-box-seam';
-                $title = "📦 Scheduled Supply: PO {$po['po_no']}";
-                $message = "Supplies from {$po['company_name']} expected on " . date('M d, Y', strtotime($eta)) . " (in {$daysDiff} days).";
+                $title = "{$poNumber} — {$companyName}";
+                $message = "Supplies expected on " . date('M d, Y', strtotime($eta)) . " (in {$daysDiff} day" . ($daysDiff > 1 ? 's' : '') . ").";
                 $timeAgo = "In {$daysDiff}d";
             }
         } else {
-            $title = "📦 Pending Delivery: PO {$po['po_no']}";
-            $message = "Supplies from {$po['company_name']} pending delivery. Target ETA not set yet.";
+            $title = "{$poNumber} — {$companyName}";
+            $message = "Supplies from {$companyName} pending delivery. Target ETA not set yet.";
         }
 
         $combinedAlerts[] = [
             'id' => 'po_' . $po['id'],
-            'po_id' => $po['id'],
-            'po_no' => $po['po_no'],
+            'po_id' => (int) $po['id'],
+            'po_no' => $poNumber,
+            'supplier_name' => $companyName,
+            'expected_delivery_date' => $eta,
             'type' => $type,
             'category' => $category,
             'title' => $title,
