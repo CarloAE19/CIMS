@@ -214,6 +214,15 @@ include 'layout/header.php';
         }
     }
 
+    .po-no-link {
+        transition: color 0.15s ease, text-decoration 0.15s ease;
+        cursor: pointer;
+    }
+    .po-no-link:hover {
+        color: #0d6efd !important;
+        text-decoration: underline !important;
+    }
+
         #poTable {
             display: block;
             width: 100%;
@@ -672,7 +681,13 @@ include 'layout/header.php';
                                 data-status="<?= htmlspecialchars($po['status'] ?? 'Generated') ?>"
                                 data-project="<?= htmlspecialchars($po['project_name'] ?? 'Warehouse Restock') ?>"
                                 data-eta-urgency="<?= $etaUrgencyVal ?>">
-                                <td class="fw-bold text-dark po-no" data-label="PO Number"><?= htmlspecialchars($po['po_no']) ?>
+                                <td class="fw-bold text-dark po-no" data-label="PO Number">
+                                    <a href="javascript:void(0)" class="text-dark text-decoration-none po-no-link d-inline-flex align-items-center gap-1"
+                                        title="Click to view details for <?= htmlspecialchars($po['po_no']) ?>"
+                                        onclick="openPoPrintModal(<?= $po['id'] ?>)">
+                                        <span><?= htmlspecialchars($po['po_no']) ?></span>
+                                        <i class="bi bi-box-arrow-up-right text-muted small" style="font-size: 0.70rem;"></i>
+                                    </a>
                                 </td>
 
                                 <td data-label="Date & Time Created">
@@ -793,10 +808,11 @@ include 'layout/header.php';
                                         </a>
                                     <?php endif; ?>
 
-                                    <!-- PRINT PO BUTTON -->
-                                    <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm me-1"
-                                        title="View/Print Virtual PO Document" onclick="openPoPrintModal(<?= $po['id'] ?>)">
-                                        <i class="bi bi-printer"></i> <span class="ms-1">Print</span>
+                                    <!-- VIEW DETAILS BUTTON -->
+                                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm me-1"
+                                        title="View Purchase Order Details" aria-label="View Details for <?= htmlspecialchars($po['po_no']) ?>"
+                                        onclick="openPoPrintModal(<?= $po['id'] ?>)">
+                                        <i class="bi bi-eye"></i> <span class="ms-1">View Details</span>
                                     </button>
 
                                     <!-- 3-DOTS MORE LOGISTICS ACTIONS DROPDOWN -->
@@ -811,6 +827,13 @@ include 'layout/header.php';
                                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="font-size: 0.85rem; min-width: 205px; border-radius: 10px; z-index: 1060;">
                                             <li class="dropdown-header text-uppercase text-muted fw-bold py-1 px-3" style="font-size: 0.68rem; letter-spacing: 0.5px;">
                                                 <i class="bi bi-gear me-1"></i> Order Options
+                                            </li>
+                                            <li>
+                                                <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                                    onclick="openPoPrintModal(<?= $po['id'] ?>)">
+                                                    <i class="bi bi-eye text-primary fs-6" style="width: 18px;"></i>
+                                                    <span>View Order Details</span>
+                                                </button>
                                             </li>
                                             <li>
                                                 <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
