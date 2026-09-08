@@ -23,6 +23,33 @@ if (!function_exists('init_secure_session')) {
     }
 }
 
+// Helper: Calculate relative time string (e.g., "5 minutes ago", "2 days ago")
+if (!function_exists('time_elapsed_string')) {
+    function time_elapsed_string($datetime, $full = false)
+    {
+        if (empty($datetime)) return 'just now';
+        try {
+            $now = new DateTime;
+            $ago = new DateTime($datetime);
+            $diff = $now->diff($ago);
+            $weeks = floor($diff->d / 7);
+            $days = $diff->d - ($weeks * 7);
+            $values = ['y' => $diff->y, 'm' => $diff->m, 'w' => $weeks, 'd' => $days, 'h' => $diff->h, 'i' => $diff->i, 's' => $diff->s];
+            $string = ['y' => 'year', 'm' => 'month', 'w' => 'week', 'd' => 'day', 'h' => 'hour', 'i' => 'minute', 's' => 'second'];
+            $parts = [];
+            foreach ($string as $k => $v) {
+                if ($values[$k])
+                    $parts[] = $values[$k] . ' ' . $v . ($values[$k] > 1 ? 's' : '');
+            }
+            if (!$full)
+                $parts = array_slice($parts, 0, 1);
+            return $parts ? implode(', ', $parts) . ' ago' : 'just now';
+        } catch (Exception $e) {
+            return 'recently';
+        }
+    }
+}
+
 // Helper: Generate or retrieve active cryptographically secure CSRF Token with TTL expiration (2 hours)
 if (!function_exists('generate_csrf_token')) {
     function generate_csrf_token($maxLifetime = 7200)
