@@ -822,6 +822,6 @@ include 'layout/header.php';
     </div>
 </div>
 
-<?php include 'components/requisition_modals.php'; ?>
+<?php include_once 'components/requisition_modals.php'; ?>
 <script src="assets/js/requisitions.js?v=<?= time() ?>"></script>
 <?php include 'layout/footer.php'; ?>

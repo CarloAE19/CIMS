@@ -401,8 +401,13 @@ $units = $units ?? [];
                 <form method="POST" action="process/process.php" id="restockForm">
                     <div class="modal-body bg-light p-4">
                         <input type="hidden" name="action" value="create_rs">
-                        <input type="hidden" name="project_name" value="Warehouse Restock">
+                        <input type="hidden" name="type" value="restock">
                         <input type="hidden" name="requisition_type" value="restock">
+                        <input type="hidden" name="project_name" value="Warehouse Restock">
+                        <input type="hidden" name="requestor_id" value="<?= $_SESSION['user_id'] ?? '' ?>">
+                        <input type="hidden" name="requestor_name" value="<?= htmlspecialchars($_SESSION['user_name'] ?? '') ?>">
+                        <input type="hidden" name="rs_no" value="RS-<?= date('Y') ?>-<?= rand(1000, 9999) ?>">
+                        <input type="hidden" name="urgency" value="Normal">
                         <?php if (function_exists('generate_csrf_token')): ?>
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
                         <?php endif; ?>

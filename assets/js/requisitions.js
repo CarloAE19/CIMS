@@ -1333,7 +1333,18 @@ function initializeRequisitionsPage() {
                     headers: headers
                 });
 
-                const result = await response.json();
+                const rawText = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(rawText);
+                } catch (jsonErr) {
+                    console.error('Non-JSON server response in rsForm:', rawText);
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = rawText;
+                    const cleanText = (tempDiv.textContent || tempDiv.innerText || rawText).trim();
+                    throw new Error(cleanText.substring(0, 250) || 'Server returned an invalid response.');
+                }
+
                 const isSuccess = result.status === 'success' || result.success === true || (result.status && result.status.toLowerCase() === 'ok');
 
                 if (isSuccess) {
@@ -1393,7 +1404,13 @@ function initializeRequisitionsPage() {
                 });
                 window.updateDeleteButtons(container);
             }
-            if (rsForm) rsForm.reset();
+            if (rsForm) {
+                rsForm.reset();
+                const rsNoInput = rsForm.querySelector('input[name="rs_no"]');
+                if (rsNoInput) {
+                    rsNoInput.value = 'RS-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
+                }
+            }
             const submitBtn = document.getElementById('rsSubmitBtn');
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -1435,7 +1452,18 @@ function initializeRequisitionsPage() {
                     headers: headers
                 });
 
-                const result = await response.json();
+                const rawText = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(rawText);
+                } catch (jsonErr) {
+                    console.error('Non-JSON server response in restockForm:', rawText);
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = rawText;
+                    const cleanText = (tempDiv.textContent || tempDiv.innerText || rawText).trim();
+                    throw new Error(cleanText.substring(0, 250) || 'Server returned an invalid response.');
+                }
+
                 const isSuccess = result.status === 'success' || result.success === true || (result.status && result.status.toLowerCase() === 'ok');
 
                 if (isSuccess) {
@@ -1490,7 +1518,13 @@ function initializeRequisitionsPage() {
                 });
                 window.updateDeleteButtons(container);
             }
-            if (restockForm) restockForm.reset();
+            if (restockForm) {
+                restockForm.reset();
+                const rsNoInput = restockForm.querySelector('input[name="rs_no"]');
+                if (rsNoInput) {
+                    rsNoInput.value = 'RS-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
+                }
+            }
             const submitBtn = document.getElementById('restockSubmitBtn');
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -1532,7 +1566,18 @@ function initializeRequisitionsPage() {
                     headers: headers
                 });
 
-                const result = await response.json();
+                const rawText = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(rawText);
+                } catch (jsonErr) {
+                    console.error('Non-JSON server response in editRsForm:', rawText);
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = rawText;
+                    const cleanText = (tempDiv.textContent || tempDiv.innerText || rawText).trim();
+                    throw new Error(cleanText.substring(0, 250) || 'Server returned an invalid response.');
+                }
+
                 const isSuccess = result.status === 'success' || result.success === true || (result.status && result.status.toLowerCase() === 'ok');
 
                 if (isSuccess) {
