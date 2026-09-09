@@ -715,8 +715,8 @@ $approvedRS = $pdo->query("
                                     <th class="text-center py-1 px-1"
                                         style="width: 22px; min-width: 20px; background-color: #212529 !important; color: #ffffff !important;">
                                         #</th>
-                                    <th class="py-1 px-1"
-                                        style="width: 60px; min-width: 54px; background-color: #212529 !important; color: #ffffff !important;">
+                                    <th class="py-1 px-1 text-nowrap"
+                                        style="width: 78px; min-width: 72px; background-color: #212529 !important; color: #ffffff !important;">
                                         Code</th>
                                     <th class="py-1 px-1"
                                         style="background-color: #212529 !important; color: #ffffff !important; min-width: 85px;">
@@ -789,26 +789,26 @@ $approvedRS = $pdo->query("
                     </div>
 
                     <!-- Cryptographic Seal & Verification QR (Clean Minimalist PKI Style) -->
-                    <div class="d-flex align-items-center justify-content-between pt-1.5 mt-2 border-top seal-block"
-                        style="border-top: 1px solid #e2e8f0 !important;">
+                    <div class="d-flex align-items-center justify-content-between p-2 mt-2 border-top seal-block"
+                        style="border-top: 1px solid #e2e8f0 !important; background-color: #f8fafc; border-radius: 6px;">
                         <div class="d-flex align-items-center gap-2">
                             <div class="d-flex align-items-center justify-content-center bg-success-subtle text-success rounded-circle"
-                                style="width: 28px; height: 28px; min-width: 28px;">
-                                <i class="bi bi-shield-lock-fill" style="font-size: 0.88rem;"></i>
+                                style="width: 32px; height: 32px; min-width: 32px;">
+                                <i class="bi bi-shield-lock-fill" style="font-size: 1rem;"></i>
                             </div>
                             <div>
                                 <div class="fw-bold text-dark"
-                                    style="font-size: 0.72rem; letter-spacing: -0.2px; line-height: 1.15;">
+                                    style="font-size: 0.76rem; letter-spacing: -0.2px; line-height: 1.15;">
                                     Certified Document
                                 </div>
-                                <div class="text-muted" style="font-size: 0.60rem; margin-top: 1px; line-height: 1.1;">
-                                    <em>Scan QR code for tamper-evident audit trail</em>
+                                <div class="text-muted" style="font-size: 0.62rem; margin-top: 2px; line-height: 1.15;">
+                                    <em>Scan QR code for tamper-evident audit trail & authenticity</em>
                                 </div>
                             </div>
                         </div>
                         <div class="text-end ps-2 flex-shrink-0">
-                            <img id="printPoQrCode" src="" alt="Verification QR" class="border rounded bg-white p-1"
-                                style="height: 40px; width: 40px; object-fit: contain;">
+                            <img id="printPoQrCode" src="" alt="Verification QR" class="border rounded bg-white p-1 shadow-sm"
+                                style="height: 62px; width: 62px; object-fit: contain;">
                         </div>
                     </div>
                 </div>
