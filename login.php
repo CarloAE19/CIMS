@@ -16,6 +16,9 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $error = '';
+if (!empty($_GET['deactivated'])) {
+    $error = 'Your session has ended because your account was deactivated by an administrator.';
+}
 $is_locked_out = false;
 $lockout_retry_after = 0;
 
