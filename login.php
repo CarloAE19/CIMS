@@ -294,9 +294,10 @@ $bg_scale = 1 + ($bg_blur * 0.006);
                             <?= ($is_remembered || !empty($_POST['remember_username'])) ? 'checked' : '' ?>
                             <?= $is_locked_out ? 'disabled' : '' ?>>
                         <span class="custom-check-indicator"><i class="bi bi-check"></i></span>
-                        <span class="remember-label-text">Remember username</span>
+                        <span class="remember-label-text">Remember me</span>
                     </label>
-                    <a href="javascript:void(0)" class="forgot-pass-link" data-bs-toggle="modal" data-bs-target="#helpModal" <?= $is_locked_out ? 'tabindex="-1"' : '' ?>>
+                    <a href="javascript:void(0)" class="forgot-pass-link" data-bs-toggle="modal"
+                        data-bs-target="#helpModal" <?= $is_locked_out ? 'tabindex="-1"' : '' ?>>
                         Forgot password?
                     </a>
                 </div>
@@ -333,32 +334,39 @@ $bg_scale = 1 + ($bg_blur * 0.006);
             <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
                 <div class="modal-header border-0 pb-0 pt-4 px-4 bg-white">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="d-flex align-items-center justify-content-center bg-primary-subtle rounded-3 text-primary" style="width: 42px; height: 42px; font-size: 1.25rem;">
+                        <div class="d-flex align-items-center justify-content-center bg-primary-subtle rounded-3 text-primary"
+                            style="width: 42px; height: 42px; font-size: 1.25rem;">
                             <i class="bi bi-shield-lock-fill"></i>
                         </div>
                         <div>
-                            <h5 class="modal-title fw-bold text-dark mb-0" id="helpModalLabel" style="font-size: 1.1rem;">Need Help Signing In?</h5>
+                            <h5 class="modal-title fw-bold text-dark mb-0" id="helpModalLabel"
+                                style="font-size: 1.1rem;">Need Help Signing In?</h5>
                             <small class="text-muted" style="font-size: 0.8rem;">Account Support</small>
                         </div>
                     </div>
-                    <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
                 </div>
                 <div class="modal-body px-4 py-3">
                     <p class="text-secondary small mb-3" style="line-height: 1.6;">
-                        If you forgot your password or are having trouble accessing your account, please reach out directly to your <strong>system administrator</strong> or <strong>IT support</strong>.
+                        If you forgot your password or are having trouble accessing your account, please reach out
+                        directly to your <strong>system administrator</strong> or <strong>IT support</strong>.
                     </p>
 
                     <div class="bg-light p-3 rounded-3 mb-0 border">
                         <div class="d-flex align-items-start gap-2">
-                            <i class="bi bi-info-circle-fill text-primary flex-shrink-0 mt-1" style="font-size: 0.95rem;"></i>
+                            <i class="bi bi-info-circle-fill text-primary flex-shrink-0 mt-1"
+                                style="font-size: 0.95rem;"></i>
                             <small class="text-muted" style="font-size: 0.8rem; line-height: 1.45;">
-                                For your security, credential resets and account unlocks must be verified and issued by an authorized administrator.
+                                For your security, credential resets and account unlocks must be verified and issued by
+                                an authorized administrator.
                             </small>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer border-0 px-4 pb-4 pt-2 bg-white">
-                    <button type="button" class="btn btn-brand w-100 fw-bold py-2 shadow-sm" data-bs-dismiss="modal" style="border-radius: 10px;">
+                    <button type="button" class="btn btn-brand w-100 fw-bold py-2 shadow-sm" data-bs-dismiss="modal"
+                        style="border-radius: 10px;">
                         <i class="bi bi-check2 me-1"></i> Got It
                     </button>
                 </div>
