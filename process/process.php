@@ -18,6 +18,39 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// === 2. IMMEDIATE ACCOUNT STATUS REVOCATION CHECK (Enterprise RBAC Standard) ===
+if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null) {
+    $statusCheck = $pdo->prepare("SELECT status FROM users WHERE id = ?");
+    $statusCheck->execute([$_SESSION['user_id']]);
+    $userActiveStatus = $statusCheck->fetchColumn();
+
+    if ($userActiveStatus !== false && strtolower($userActiveStatus) === 'inactive') {
+        $_SESSION = [];
+        if (ini_get("session.use_cookies")) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000,
+                $params["path"], $params["domain"],
+                $params["secure"], $params["httponly"]
+            );
+        }
+        session_destroy();
+
+        $is_ajax_revoked = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+                           (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
+                           (isset($_POST['action']) && strpos($_POST['action'], 'fetch_') === 0);
+
+        if ($is_ajax_revoked) {
+            header('Content-Type: application/json');
+            http_response_code(403);
+            echo json_encode(['status' => 'error', 'message' => 'Your account has been deactivated. Access revoked.']);
+            exit;
+        }
+
+        header("Location: ../login?deactivated=1");
+        exit;
+    }
+}
+
 // FCM HTTP v1 Push Notification Helper (JWT + OAuth2, no Composer required)
 require_once __DIR__ . '/../Connection/fcm_helper.php';
 
