@@ -840,20 +840,13 @@ include 'layout/header.php';
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="font-size: 0.85rem; min-width: 205px; border-radius: 10px; z-index: 1060;">
                                             <li class="dropdown-header text-uppercase text-muted fw-bold py-1 px-3" style="font-size: 0.68rem; letter-spacing: 0.5px;">
-                                                <i class="bi bi-gear me-1"></i> Order Options
+                                                <i class="bi bi-gear me-1"></i> Order Actions
                                             </li>
                                             <li>
                                                 <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
-                                                    onclick="openPoPrintModal(<?= $po['id'] ?>)">
-                                                    <i class="bi bi-eye text-primary fs-6" style="width: 18px;"></i>
-                                                    <span>View Order Details</span>
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
-                                                    onclick="openPoPrintModal(<?= $po['id'] ?>)">
+                                                    onclick="directPrintPo(<?= $po['id'] ?>)">
                                                     <i class="bi bi-printer text-secondary fs-6" style="width: 18px;"></i>
-                                                    <span>Print PO Manifest</span>
+                                                    <span>Print PO Document</span>
                                                 </button>
                                             </li>
                                             <?php if ($canManageLogistics): ?>
@@ -879,6 +872,20 @@ include 'layout/header.php';
                                                         <i class="bi bi-paperclip text-info fs-6" style="width: 18px;"></i>
                                                         <span>View Receipt</span>
                                                     </a>
+                                                </li>
+                                            <?php endif; ?>
+                                            <?php if (!empty($po['delay_remarks'])): ?>
+                                                <li>
+                                                    <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                                        data-pono="<?= htmlspecialchars($po['po_no']) ?>"
+                                                        data-poid="<?= (int)$po['id'] ?>"
+                                                        data-status="<?= htmlspecialchars($po['status']) ?>"
+                                                        data-remarks="<?= htmlspecialchars($po['delay_remarks']) ?>"
+                                                        data-proof="<?= htmlspecialchars($secureReceiptUrl) ?>" 
+                                                        onclick="viewDiscrepancy(this)">
+                                                        <i class="bi bi-clock-history text-secondary fs-6" style="width: 18px;"></i>
+                                                        <span>Delivery & Issue Log</span>
+                                                    </button>
                                                 </li>
                                             <?php endif; ?>
                                             <?php if ($canManageLogistics): ?>
@@ -2145,6 +2152,15 @@ include 'layout/header.php';
             </html>
         `);
         printWindow.document.close();
+    };
+
+    window.directPrintPo = async function (poId) {
+        await window.openPoPrintModal(poId);
+        setTimeout(function () {
+            if (typeof window.printPoDocument === 'function') {
+                window.printPoDocument();
+            }
+        }, 500);
     };
 
     // Interactive KPI Filter Tiles & Multi-Criteria Table Filtering
