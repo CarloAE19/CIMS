@@ -35,6 +35,27 @@ if (!function_exists('time_elapsed_string')) {
 $currentUserRole = $_SESSION['user_role'] ?? 'requestor';
 $currentUserId = $_SESSION['user_id'] ?? 0;
 
+// Immediate Session Revocation Check (Enterprise Security & RBAC Standard)
+if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null && $currentUserId > 0) {
+    $statusCheck = $pdo->prepare("SELECT status FROM users WHERE id = ?");
+    $statusCheck->execute([$currentUserId]);
+    $userActiveStatus = $statusCheck->fetchColumn();
+
+    if ($userActiveStatus !== false && strtolower($userActiveStatus) === 'inactive') {
+        $_SESSION = [];
+        if (ini_get("session.use_cookies")) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000,
+                $params["path"], $params["domain"],
+                $params["secure"], $params["httponly"]
+            );
+        }
+        session_destroy();
+        header("Location: login?deactivated=1");
+        exit;
+    }
+}
+
 $notifications = [];
 $unreadCount = 0;
 if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null) {
