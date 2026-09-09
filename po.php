@@ -1894,7 +1894,7 @@ include 'layout/header.php';
 
                         tr.innerHTML = `
                             <td class="text-center font-monospace py-1 px-1">${index + 1}</td>
-                            <td class="fw-bold text-muted py-1 px-1 font-monospace" style="font-size: 0.70rem; word-break: break-all;">${item.item_code}</td>
+                            <td class="fw-bold text-muted py-1 px-1 font-monospace text-nowrap" style="font-size: 0.70rem; white-space: nowrap !important; word-break: keep-all !important;">${item.item_code}</td>
                             <td class="py-1 px-1 text-wrap" style="min-width: 85px;">
                                 <div class="fw-bold text-dark" style="font-size: 0.74rem; line-height: 1.15;">${item.item_name} <span class="text-muted fw-normal" style="font-size: 0.68rem;">(${item.unit || 'units'})</span></div>
                                 ${fulfillmentBadge ? `<div class="mt-0.5">${fulfillmentBadge}</div>` : ''}
@@ -1950,7 +1950,7 @@ include 'layout/header.php';
                 if (poQrImg) {
                     const basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
                     const verifyUrl = `${window.location.origin}${basePath}/verify?type=po&ref=${encodeURIComponent(po.po_no)}`;
-                    poQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verifyUrl)}`;
+                    poQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
                 }
 
                 if (spinner) spinner.classList.add('d-none');
@@ -2012,7 +2012,7 @@ include 'layout/header.php';
                         width: 100% !important;
                         max-width: 100% !important;
                         margin: 0 !important;
-                        padding: 4mm 6mm !important;
+                        padding: 0.5in 0.4in 0.4in 0.4in !important;
                         box-sizing: border-box !important;
                         ${isMultiPage ? '' : 'page-break-inside: avoid;'}
                     }
@@ -2056,6 +2056,12 @@ include 'layout/header.php';
                     .table-sm th, .table-sm td {
                         padding: ${isDense ? '2px 5px' : '3px 6px'} !important;
                         line-height: ${isDense ? '1.15' : '1.25'} !important;
+                    }
+                    .table th:nth-child(2), .table td:nth-child(2) {
+                        white-space: nowrap !important;
+                        word-break: keep-all !important;
+                        width: 78px !important;
+                        min-width: 72px !important;
                     }
                     .bg-light {
                         background-color: #f8f9fa !important;
@@ -2128,6 +2134,11 @@ include 'layout/header.php';
                         page-break-inside: avoid !important;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
+                    }
+                    #printPoQrCode {
+                        width: 62px !important;
+                        height: 62px !important;
+                        object-fit: contain !important;
                     }
                 </style>
             </head>
