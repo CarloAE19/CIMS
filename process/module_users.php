@@ -22,6 +22,27 @@ function validate_password_strength($password) {
 if (in_array($action, ['add_user', 'edit_user', 'delete_user', 'toggle_user_status'])) {
     if ($_SESSION['user_role'] !== 'admin') throw new Exception("Admin privileges required.");
 
+    // 🛡️ CSRF Token Validation (Enterprise Security Standard)
+    $submittedToken = $_POST['csrf_token'] ?? '';
+    if (function_exists('validate_csrf_token') && !validate_csrf_token($submittedToken)) {
+        throw new Exception("Security session expired or invalid CSRF token. Please refresh the page and try again.");
+    }
+
+    // Auto-patch audit_logs table (ISO 9001 Clause 8.5.2 & 7.5 Traceability)
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS audit_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            action_type VARCHAR(50) NOT NULL,
+            entity_type VARCHAR(50) NOT NULL,
+            entity_id INT NOT NULL,
+            previous_value TEXT DEFAULT NULL,
+            new_value TEXT DEFAULT NULL,
+            ip_address VARCHAR(45) DEFAULT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (PDOException $e) {}
+
     if ($action === 'add_user') {
         $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
         $check->execute([$_POST['username']]);
@@ -39,6 +60,15 @@ if (in_array($action, ['add_user', 'edit_user', 'delete_user', 'toggle_user_stat
             ':password' => $hashed_password,
             ':status' => $status
         ]);
+        $newUserId = (int)$pdo->lastInsertId();
+
+        // Audit Trail
+        try {
+            $ip = $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
+            $auditStmt = $pdo->prepare("INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, previous_value, new_value, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $auditStmt->execute([$_SESSION['user_id'], 'USER_CREATED', 'user', $newUserId, null, json_encode(['username' => $_POST['username'], 'role' => $_POST['role'], 'status' => $status]), $ip]);
+        } catch (Exception $e) {}
+
         $_SESSION['message'] = "User created successfully!";
         $_SESSION['msg_type'] = "success";
 
@@ -48,6 +78,11 @@ if (in_array($action, ['add_user', 'edit_user', 'delete_user', 'toggle_user_stat
         $check = $pdo->prepare("SELECT id FROM users WHERE username = ? AND id != ?");
         $check->execute([$_POST['username'], $userId]);
         if ($check->rowCount() > 0) throw new Exception("This username is already taken by someone else.");
+
+        $fetchOld = $pdo->prepare("SELECT status, name FROM users WHERE id = ?");
+        $fetchOld->execute([$userId]);
+        $oldUserData = $fetchOld->fetch(PDO::FETCH_ASSOC);
+        $oldStatus = strtolower($oldUserData['status'] ?? 'active');
 
         $status = (!empty($_POST['status']) && in_array($_POST['status'], ['active', 'inactive'])) ? $_POST['status'] : 'active';
         if ($userId == $_SESSION['user_id']) {
@@ -77,6 +112,27 @@ if (in_array($action, ['add_user', 'edit_user', 'delete_user', 'toggle_user_stat
             ]);
         }
         
+        // Revoke push notification token on deactivation
+        if ($status === 'inactive') {
+            $pdo->prepare("UPDATE users SET fcm_token = NULL WHERE id = ?")->execute([$userId]);
+        }
+
+        // Traceability & Audit Trail Logging
+        if ($status !== $oldStatus) {
+            try {
+                $ip = $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
+                $auditAction = ($status === 'inactive') ? 'USER_DEACTIVATED' : 'USER_ACTIVATED';
+                $auditStmt = $pdo->prepare("INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, previous_value, new_value, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $auditStmt->execute([$_SESSION['user_id'], $auditAction, 'user', $userId, $oldStatus, $status, $ip]);
+
+                $adminName = $_SESSION['user_name'] ?? 'Administrator';
+                $notifTitle = ($status === 'inactive') ? 'User Account Deactivated' : 'User Account Activated';
+                $notifMsg = "Admin {$adminName} updated status of staff '{$_POST['name']}' to {$status}.";
+                $notifStmt = $pdo->prepare("INSERT INTO notifications (target_user_id, target_role, title, message, is_read, created_at) VALUES (?, 'admin', ?, ?, 0, NOW())");
+                $notifStmt->execute([$_SESSION['user_id'], $notifTitle, $notifMsg]);
+            } catch (Exception $e) {}
+        }
+
         if ($userId == $_SESSION['user_id']) { 
             $_SESSION['user_name'] = $_POST['name']; 
             $_SESSION['user_role'] = $_POST['role']; 
@@ -100,6 +156,25 @@ if (in_array($action, ['add_user', 'edit_user', 'delete_user', 'toggle_user_stat
 
         $updateStmt = $pdo->prepare("UPDATE users SET status = ? WHERE id = ?");
         $updateStmt->execute([$newStatus, $userId]);
+
+        // Revoke push notification token immediately on deactivation
+        if ($newStatus === 'inactive') {
+            $pdo->prepare("UPDATE users SET fcm_token = NULL WHERE id = ?")->execute([$userId]);
+        }
+
+        // ISO 9001 Audit Trail & Admin Notification
+        try {
+            $ip = $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
+            $auditAction = ($newStatus === 'inactive') ? 'USER_DEACTIVATED' : 'USER_ACTIVATED';
+            $auditStmt = $pdo->prepare("INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, previous_value, new_value, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $auditStmt->execute([$_SESSION['user_id'], $auditAction, 'user', $userId, $currentStatus, $newStatus, $ip]);
+
+            $adminName = $_SESSION['user_name'] ?? 'Administrator';
+            $notifTitle = ($newStatus === 'inactive') ? 'User Account Deactivated' : 'User Account Activated';
+            $notifMsg = "Admin {$adminName} {$newStatus} staff account '{$targetUser['name']}' from IP {$ip}.";
+            $notifStmt = $pdo->prepare("INSERT INTO notifications (target_user_id, target_role, title, message, is_read, created_at) VALUES (?, 'admin', ?, ?, 0, NOW())");
+            $notifStmt->execute([$_SESSION['user_id'], $notifTitle, $notifMsg]);
+        } catch (Exception $e) {}
 
         $statusLabel = ($newStatus === 'active') ? 'activated' : 'deactivated';
         $_SESSION['message'] = "User <b>" . htmlspecialchars($targetUser['name']) . "</b> has been {$statusLabel} successfully.";
