@@ -310,6 +310,7 @@ include 'layout/header.php';
                                             <form method="POST" action="process/process.php" class="d-inline"
                                                 onsubmit="return confirm('Are you sure you want to <?= $isActive ? 'deactivate' : 'activate' ?> <?= htmlspecialchars(addslashes($user['name'])) ?>?');">
                                                 <input type="hidden" name="action" value="toggle_user_status">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
                                                 <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
                                                 <input type="hidden" name="return_tab" value="users">
                                                 <?php if ($isActive): ?>
