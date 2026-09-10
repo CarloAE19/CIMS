@@ -27,7 +27,7 @@
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">System Role <span class="text-danger">*</span></label>
                             <select class="form-select" name="role" id="userRole" required>
-                                <option value="requestor">Requestor</option>
+                                <option value="requestor">Project Engineer (Requestor)</option>
                                 <option value="purchasing">Purchasing Officer</option>
                                 <option value="management">Management</option>
                                 <option value="warehouse">Warehouse In-Charge</option>
