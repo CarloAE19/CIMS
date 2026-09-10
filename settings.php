@@ -36,7 +36,7 @@ $roleDisplay = [
     'warehouse' => ['label' => 'Warehouse In-Charge', 'class' => 'bg-success'],
     'management' => ['label' => 'Management', 'class' => 'bg-warning text-dark'],
     'purchasing' => ['label' => 'Purchasing Officer', 'class' => 'bg-info text-dark'],
-    'requestor' => ['label' => 'Requestor', 'class' => 'bg-secondary']
+    'requestor' => ['label' => 'Project Engineer', 'class' => 'bg-secondary']
 ];
 
 // 2. Fetch Categories
@@ -1552,7 +1552,7 @@ include 'layout/header.php';
                                         <thead class="table-light">
                                             <tr>
                                                 <th>RS No.</th>
-                                                <th>Requestor</th>
+                                                <th>Project Engineer / Requestor</th>
                                                 <th>Date Requested</th>
                                                 <th>Urgency</th>
                                                 <th>Status</th>
