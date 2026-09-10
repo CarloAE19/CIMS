@@ -199,6 +199,94 @@ class BackupService
     }
 
     /**
+     * Trigger an automated security incident snapshot when an attack or brute-force is detected.
+     * Enforces an anti-spam cooldown window (default 30 minutes) to prevent disk-exhaustion attacks.
+     *
+     * @param string $reason Description of detected attack
+     * @param string $sourceIp Attacking client IP
+     * @param int $cooldownSeconds Anti-spam throttle window
+     * @return array|null Metadata of backup if created, null if throttled
+     */
+    public function triggerSecurityIncidentSnapshot(string $reason = 'Brute-force attack detected', string $sourceIp = '127.0.0.1', int $cooldownSeconds = 1800): ?array
+    {
+        $cooldownFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'siteware_sec_snapshot_lock.json';
+        $now = time();
+
+        if (file_exists($cooldownFile)) {
+            $lockData = @json_decode(@file_get_contents($cooldownFile), true);
+            if (is_array($lockData) && isset($lockData['last_triggered'])) {
+                if (($now - (int)$lockData['last_triggered']) < $cooldownSeconds) {
+                    // Throttled: snapshot was already taken recently during this attack window
+                    return null;
+                }
+            }
+        }
+
+        // Generate immediate security snapshot
+        $backupMeta = $this->generateDatabaseBackup(true, 'siteware_security_snapshot_');
+
+        // Record cooldown lock
+        @file_put_contents($cooldownFile, json_encode([
+            'last_triggered' => $now,
+            'reason' => $reason,
+            'source_ip' => $sourceIp,
+            'filename' => $backupMeta['filename']
+        ]));
+
+        return $backupMeta;
+    }
+
+    /**
+     * Run an automated daily database backup if one hasn't been taken today.
+     * Also prunes automated daily backups older than $retentionDays.
+     *
+     * @param int $retentionDays Number of days of daily backups to preserve (default 14)
+     * @return array|null Metadata of generated backup, or null if today's backup already exists
+     */
+    public function runScheduledDailyBackup(int $retentionDays = 14): ?array
+    {
+        $todayPrefix = 'siteware_daily_' . date('Y-m-d');
+        $existingDaily = glob($this->backupDir . DIRECTORY_SEPARATOR . $todayPrefix . '*.sql');
+
+        $generated = null;
+        if (empty($existingDaily)) {
+            $generated = $this->generateDatabaseBackup(true, 'siteware_daily_');
+        }
+
+        // Prune older automated daily backups past retention threshold
+        $this->pruneDailyBackups($retentionDays);
+
+        return $generated;
+    }
+
+    /**
+     * Prune automated daily backup files older than a specified number of days.
+     * Standard manual backups and security incident snapshots are NEVER automatically deleted.
+     *
+     * @param int $retentionDays
+     * @return int Number of pruned files
+     */
+    public function pruneDailyBackups(int $retentionDays = 14): int
+    {
+        $this->ensureBackupDirectoryExists();
+        $files = glob($this->backupDir . DIRECTORY_SEPARATOR . 'siteware_daily_*.sql');
+        if (empty($files)) return 0;
+
+        $pruneThreshold = time() - ($retentionDays * 86400);
+        $prunedCount = 0;
+
+        foreach ($files as $file) {
+            if (filemtime($file) < $pruneThreshold) {
+                if (@unlink($file)) {
+                    $prunedCount++;
+                }
+            }
+        }
+
+        return $prunedCount;
+    }
+
+    /**
      * List all available backup files stored on the server.
      *
      * @return array List of backup records sorted newest first
@@ -217,7 +305,24 @@ class BackupService
             $filename = basename($file);
             $size = filesize($file);
             $mtime = filemtime($file);
-            $isAuto = str_starts_with($filename, 'siteware_auto_prerestore_');
+
+            $isSecuritySnapshot = str_starts_with($filename, 'siteware_security_snapshot_');
+            $isPreRestore = str_starts_with($filename, 'siteware_auto_prerestore_');
+            $isDaily = str_starts_with($filename, 'siteware_daily_');
+
+            if ($isSecuritySnapshot) {
+                $typeLabel = 'Security Incident Snapshot';
+                $badgeClass = 'bg-danger text-white';
+            } elseif ($isPreRestore) {
+                $typeLabel = 'Pre-Restore Snapshot';
+                $badgeClass = 'bg-warning text-dark';
+            } elseif ($isDaily) {
+                $typeLabel = 'Automated Daily Backup';
+                $badgeClass = 'bg-info text-dark';
+            } else {
+                $typeLabel = 'Standard Backup';
+                $badgeClass = 'bg-primary text-white';
+            }
 
             $backups[] = [
                 'filename' => $filename,
@@ -226,9 +331,9 @@ class BackupService
                 'created_at' => date('Y-m-d H:i:s', $mtime),
                 'created_at_relative' => function_exists('time_elapsed_string') ? time_elapsed_string(date('Y-m-d H:i:s', $mtime)) : date('M d, Y h:i A', $mtime),
                 'timestamp' => $mtime,
-                'is_auto_snapshot' => $isAuto,
-                'type_label' => $isAuto ? 'Pre-Restore Snapshot' : 'Standard Backup',
-                'badge_class' => $isAuto ? 'bg-warning text-dark' : 'bg-primary text-white'
+                'is_auto_snapshot' => ($isPreRestore || $isDaily || $isSecuritySnapshot),
+                'type_label' => $typeLabel,
+                'badge_class' => $badgeClass
             ];
         }
 
