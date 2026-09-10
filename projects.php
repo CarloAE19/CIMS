@@ -387,7 +387,7 @@ include 'layout/header.php';
                                         <thead class="table-light">
                                             <tr>
                                                 <th>RS No.</th>
-                                                <th>Requestor</th>
+                                                <th>Project Engineer / Requestor</th>
                                                 <th>Date Requested</th>
                                                 <th>Urgency</th>
                                                 <th>Status</th>
