@@ -19,7 +19,7 @@ $roleDisplay = [
     'warehouse' => ['label' => 'Warehouse In-Charge', 'class' => 'bg-success'],
     'management' => ['label' => 'Management', 'class' => 'bg-warning text-dark'],
     'purchasing' => ['label' => 'Purchasing Officer', 'class' => 'bg-info text-dark'],
-    'requestor' => ['label' => 'Requestor', 'class' => 'bg-secondary']
+    'requestor' => ['label' => 'Project Engineer', 'class' => 'bg-secondary']
 ];
 
 $roleClass = $roleDisplay[$user['role']]['class'] ?? 'bg-secondary';
