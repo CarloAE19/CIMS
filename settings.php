@@ -9,10 +9,15 @@ if ($_SESSION['user_role'] !== 'admin') {
     exit;
 }
 require_once 'Connection/db.php';
+require_once 'classes/BackupService.php';
 
 // Determine Active Tab from query param (defaults to 'users')
-$validTabs = ['users', 'categories', 'units', 'projects', 'general'];
+$validTabs = ['users', 'categories', 'units', 'projects', 'general', 'backup'];
 $activeTab = isset($_GET['tab']) && in_array($_GET['tab'], $validTabs) ? $_GET['tab'] : 'users';
+
+// Initialize SiteWare Backup Service
+$backupService = new BackupService($pdo);
+$backupFiles = $backupService->listBackups();
 
 // ==========================================
 // DATA FETCHING FOR ALL TABS
@@ -230,6 +235,14 @@ include 'layout/header.php';
                     data-bs-toggle="pill" data-bs-target="#tab-general" type="button" role="tab"
                     onclick="switchSettingsTab('general')">
                     <i class="bi bi-sliders"></i> General & Appearance
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?= $activeTab === 'backup' ? 'active' : '' ?>" id="backup-tab"
+                    data-bs-toggle="pill" data-bs-target="#tab-backup" type="button" role="tab"
+                    onclick="switchSettingsTab('backup')">
+                    <i class="bi bi-shield-lock-fill text-info"></i> Backup &amp; Restore
+                    <span class="badge rounded-pill bg-secondary badge-count ms-1" id="backupNavBadge"><?= count($backupFiles) ?></span>
                 </button>
             </li>
         </ul>
@@ -875,12 +888,252 @@ include 'layout/header.php';
             </div><!-- /card -->
         </div>
 
+        <!-- ======================================================== -->
+        <!-- TAB 6: SITEWARE BACKUP & DISASTER RECOVERY               -->
+        <!-- ======================================================== -->
+        <div class="tab-pane fade <?= $activeTab === 'backup' ? 'show active' : '' ?>" id="tab-backup" role="tabpanel">
+            <div class="card border-0 shadow-sm p-3 p-md-4 bg-white">
+                
+                <!-- Section Header Banner & Quick Actions -->
+                <div class="row align-items-center mb-4 g-3">
+                    <div class="col-12 col-lg-7 text-center text-lg-start">
+                        <div class="d-flex align-items-center justify-content-center justify-content-lg-start gap-2 mb-1">
+                            <span class="badge bg-info text-dark px-3 py-1 fw-bold rounded-pill text-uppercase" style="font-size: 0.72rem;">
+                                <i class="bi bi-shield-check me-1"></i>ISO/IEC 25010 Data Protection
+                            </span>
+                        </div>
+                        <h4 class="mb-1 fw-bold text-dark">
+                            <i class="bi bi-database-fill-gear me-2 text-info"></i>SiteWare Backup &amp; Disaster Recovery
+                        </h4>
+                        <small class="text-muted">
+                            Create on-demand database snapshots, download SQL backup archives, or restore the database to a prior verified state.
+                        </small>
+                    </div>
+                    <div class="col-12 col-lg-5 text-center text-lg-end">
+                        <div class="d-flex flex-wrap gap-2 justify-content-center justify-content-lg-end">
+                            <button type="button" class="btn btn-brand fw-bold px-3 py-2 shadow-sm d-flex align-items-center gap-2" id="btnCreateBackup" onclick="handleCreateBackup()">
+                                <i class="bi bi-cloud-arrow-down-fill"></i>
+                                <span>Create Backup Now</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-primary fw-bold px-3 py-2 shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#restoreBackupModal">
+                                <i class="bi bi-cloud-arrow-up-fill"></i>
+                                <span>Upload &amp; Restore</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Cards / Recovery Safeguard Notice -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-4">
+                        <div class="p-3 border rounded-3 bg-light d-flex align-items-center gap-3 h-100 shadow-sm">
+                            <div class="rounded-circle bg-primary bg-opacity-10 p-3 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                <i class="bi bi-server fs-5"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small fw-semibold text-uppercase">Stored Backups</div>
+                                <div class="fs-5 fw-bold text-dark" id="statBackupCount"><?= count($backupFiles) ?> Files</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="p-3 border rounded-3 bg-light d-flex align-items-center gap-3 h-100 shadow-sm">
+                            <div class="rounded-circle bg-success bg-opacity-10 p-3 text-success d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                <i class="bi bi-clock-history fs-5"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small fw-semibold text-uppercase">Latest Snapshot</div>
+                                <div class="fs-6 fw-bold text-dark text-truncate" style="max-width: 200px;" id="statLatestBackup">
+                                    <?= !empty($backupFiles) ? htmlspecialchars($backupFiles[0]['created_at_relative']) : 'None created yet' ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="p-3 border rounded-3 bg-light d-flex align-items-center gap-3 h-100 shadow-sm">
+                            <div class="rounded-circle bg-warning bg-opacity-10 p-3 text-warning d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                <i class="bi bi-shield-lock-fill fs-5 text-dark"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small fw-semibold text-uppercase">Safety Failsafe</div>
+                                <div class="fs-6 fw-bold text-success">Pre-Restore Auto Snapshot</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Callout Banner on Safe Recovery -->
+                <div class="alert alert-info border-0 shadow-sm d-flex align-items-start gap-3 mb-4 rounded-3" role="alert">
+                    <i class="bi bi-info-circle-fill fs-4 flex-shrink-0 text-info"></i>
+                    <div class="small">
+                        <strong class="d-block mb-1 text-dark">Enterprise Risk Mitigation &amp; ISO 9001 Process Control:</strong>
+                        <span class="text-secondary">
+                            Before restoring any database file, SiteWare automatically compiles a safety pre-restore backup (prefixed with <code>siteware_auto_prerestore_</code>).
+                            If an unintended restore occurs, you can instantly revert by selecting the automated safety snapshot from the list below.
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Backups History Table -->
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">
+                            <i class="bi bi-archive-fill me-2 text-secondary"></i>Backup Archives Repository
+                        </h5>
+                        <small class="text-muted">Directly download, restore, or delete database files securely stored on the server.</small>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="refreshBackupsList(true)">
+                            <i class="bi bi-arrow-clockwise me-1" id="refreshBackupsSpinner"></i> Refresh List
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive border rounded-3 shadow-sm">
+                    <table class="table table-hover align-middle mb-0 text-nowrap" id="backupsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="py-3">Backup File Name</th>
+                                <th class="py-3 text-center">Type</th>
+                                <th class="py-3 text-center">File Size</th>
+                                <th class="py-3">Date Created</th>
+                                <th class="py-3 text-center" style="width: 180px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backupsTableBody">
+                            <?php if (empty($backupFiles)): ?>
+                                <tr id="noBackupsRow">
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        <i class="bi bi-database-exclamation fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                                        <h6 class="fw-bold mb-1">No database backups found</h6>
+                                        <p class="small mb-3">Click &ldquo;Create Backup Now&rdquo; to generate your first SiteWare database backup.</p>
+                                        <button type="button" class="btn btn-sm btn-brand fw-bold px-3 shadow-sm" onclick="handleCreateBackup()">
+                                            <i class="bi bi-cloud-arrow-down-fill me-1"></i> Create Backup Now
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($backupFiles as $backup): ?>
+                                    <tr id="row_<?= htmlspecialchars(md5($backup['filename'])) ?>">
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi bi-file-earmark-code-fill text-primary fs-5"></i>
+                                                <span class="fw-bold text-dark font-monospace"><?= htmlspecialchars($backup['filename']) ?></span>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge rounded-pill <?= $backup['badge_class'] ?> px-2 py-1 fw-bold" style="font-size: 0.72rem;">
+                                                <?= htmlspecialchars($backup['type_label']) ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-center font-monospace text-muted fw-semibold">
+                                            <?= htmlspecialchars($backup['filesize_formatted']) ?>
+                                        </td>
+                                        <td>
+                                            <div class="text-dark fw-semibold small"><?= htmlspecialchars($backup['created_at']) ?></div>
+                                            <small class="text-muted" style="font-size: 0.75rem;"><?= htmlspecialchars($backup['created_at_relative']) ?></small>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="d-inline-flex gap-1">
+                                                <!-- Download Button -->
+                                                <a href="process/module_backup.php?action=download_backup&file=<?= urlencode($backup['filename']) ?>" 
+                                                   class="btn btn-sm btn-outline-success" 
+                                                   title="Download SQL File"
+                                                   aria-label="Download <?= htmlspecialchars($backup['filename']) ?>">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                                <!-- Restore Button -->
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-warning text-dark fw-bold" 
+                                                        title="Restore Database from this file"
+                                                        aria-label="Restore database from <?= htmlspecialchars($backup['filename']) ?>"
+                                                        onclick="confirmServerRestore('<?= htmlspecialchars(addslashes($backup['filename'])) ?>')">
+                                                    <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                </button>
+                                                <!-- Delete Button -->
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-danger" 
+                                                        title="Delete Backup File"
+                                                        aria-label="Delete <?= htmlspecialchars($backup['filename']) ?>"
+                                                        onclick="confirmDeleteBackup('<?= htmlspecialchars(addslashes($backup['filename'])) ?>')">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
     </div>
 </div>
 
 <!-- ======================================================== -->
 <!-- MODALS                                                   -->
 <!-- ======================================================== -->
+
+<!-- SiteWare Restore Database Modal (Conforms to CIMS Modal AJAX Skill) -->
+<div class="modal fade" id="restoreBackupModal" tabindex="-1" aria-labelledby="restoreBackupModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold" id="restoreBackupModalTitle">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Restore SiteWare Database
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="restoreUploadForm" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="action" value="restore_backup">
+                    <input type="hidden" name="source_type" value="upload">
+
+                    <div class="alert alert-warning border-0 shadow-sm d-flex align-items-start gap-2 mb-3" role="alert">
+                        <i class="bi bi-shield-exclamation fs-4 flex-shrink-0 text-danger"></i>
+                        <div class="small">
+                            <strong class="d-block text-danger">High Impact Operation:</strong>
+                            Restoring will overwrite current database records with the selected backup file. An automated pre-restore safety snapshot will be taken immediately before restoring.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="restoreBackupFileInput" class="form-label fw-bold text-dark">
+                            Select SiteWare SQL Backup File <span class="text-danger">*</span>
+                        </label>
+                        <input type="file" 
+                               class="form-control form-control-lg" 
+                               id="restoreBackupFileInput" 
+                               name="backup_file" 
+                               accept=".sql" 
+                               required>
+                        <div class="form-text small text-muted">
+                            Only valid <code>.sql</code> files generated by SiteWare or MySQL (max 100MB) are accepted.
+                        </div>
+                    </div>
+
+                    <div class="p-3 border rounded-3 bg-light mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="restoreSafetyCheckbox" required>
+                            <label class="form-check-label small fw-semibold text-dark user-select-none" for="restoreSafetyCheckbox">
+                                I confirm that I want to restore this backup. I understand that all existing tables will be synchronized to the state in the backup file.
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light d-flex justify-content-between">
+                    <button type="button" class="btn btn-secondary fw-bold px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger fw-bold px-4" id="btnSubmitRestoreUpload">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Restore Database
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Category Modal -->
 <div class="modal fade" id="categoryModal" tabindex="-1">
@@ -1358,6 +1611,534 @@ include 'layout/header.php';
             }
         }
     })();
+</script>
+
+<!-- SweetAlert2 CDN for Enterprise Feedback Dialogs -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- SiteWare Backup & Disaster Recovery Client Handlers (Conforms to CIMS Modal AJAX Skill) -->
+<script>
+    // Utility: XSS-safe string escaping
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.toString().replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // Dynamic Client-Side Re-render of Backups Table & Status Badges
+    function renderBackupsTable(backups) {
+        const tbody = document.getElementById('backupsTableBody');
+        const countBadge = document.getElementById('backupNavBadge');
+        const statCount = document.getElementById('statBackupCount');
+        const statLatest = document.getElementById('statLatestBackup');
+
+        if (countBadge) countBadge.textContent = backups.length;
+        if (statCount) statCount.textContent = backups.length + ' Files';
+        if (statLatest) {
+            statLatest.textContent = backups.length > 0 ? (backups[0].created_at_relative || backups[0].created_at) : 'None created yet';
+        }
+
+        if (!tbody) return;
+
+        if (!backups || backups.length === 0) {
+            tbody.innerHTML = `
+                <tr id="noBackupsRow">
+                    <td colspan="5" class="text-center py-5 text-muted">
+                        <i class="bi bi-database-exclamation fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                        <h6 class="fw-bold mb-1">No database backups found</h6>
+                        <p class="small mb-3">Click &ldquo;Create Backup Now&rdquo; to generate your first SiteWare database backup.</p>
+                        <button type="button" class="btn btn-sm btn-brand fw-bold px-3 shadow-sm" onclick="handleCreateBackup()">
+                            <i class="bi bi-cloud-arrow-down-fill me-1"></i> Create Backup Now
+                        </button>
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        let html = '';
+        backups.forEach(b => {
+            const escapedName = escapeHtml(b.filename);
+            const rawNameForJs = b.filename.replace(/'/g, "\\'");
+            html += `
+                <tr id="row_${b.timestamp}">
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-file-earmark-code-fill text-primary fs-5"></i>
+                            <span class="fw-bold text-dark font-monospace">${escapedName}</span>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge rounded-pill ${b.badge_class} px-2 py-1 fw-bold" style="font-size: 0.72rem;">
+                            ${escapeHtml(b.type_label)}
+                        </span>
+                    </td>
+                    <td class="text-center font-monospace text-muted fw-semibold">
+                        ${escapeHtml(b.filesize_formatted)}
+                    </td>
+                    <td>
+                        <div class="text-dark fw-semibold small">${escapeHtml(b.created_at)}</div>
+                        <small class="text-muted" style="font-size: 0.75rem;">${escapeHtml(b.created_at_relative)}</small>
+                    </td>
+                    <td class="text-center">
+                        <div class="d-inline-flex gap-1">
+                            <a href="process/module_backup.php?action=download_backup&file=${encodeURIComponent(b.filename)}" 
+                               class="btn btn-sm btn-outline-success" 
+                               title="Download SQL File"
+                               aria-label="Download ${escapedName}">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-warning text-dark fw-bold" 
+                                    title="Restore Database from this file"
+                                    aria-label="Restore database from ${escapedName}"
+                                    onclick="confirmServerRestore('${rawNameForJs}')">
+                                <i class="bi bi-arrow-counterclockwise"></i> Restore
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-danger" 
+                                    title="Delete Backup File"
+                                    aria-label="Delete ${escapedName}"
+                                    onclick="confirmDeleteBackup('${rawNameForJs}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    // Refresh backups list asynchronously
+    async function refreshBackupsList(showFeedback = false) {
+        const spinner = document.getElementById('refreshBackupsSpinner');
+        if (spinner) spinner.classList.add('spin-animation');
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const res = await fetch('process/process.php?action=fetch_backups', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-Token': csrfToken
+                }
+            });
+            const data = await res.json();
+            if (data.success && Array.isArray(data.data)) {
+                renderBackupsTable(data.data);
+                if (showFeedback && typeof Swal !== 'undefined') {
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 1500,
+                        timerProgressBar: true
+                    });
+                    Toast.fire({
+                        icon: 'success',
+                        title: 'Backup list refreshed.'
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('Error refreshing backups:', err);
+        } finally {
+            if (spinner) spinner.classList.remove('spin-animation');
+        }
+    }
+
+    // 1. Action: Trigger Immediate Backup Generation
+    async function handleCreateBackup() {
+        const btn = document.getElementById('btnCreateBackup');
+        const originalHtml = btn ? btn.innerHTML : 'Create Backup Now';
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Generating Backup...';
+        }
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const formData = new FormData();
+            formData.append('action', 'create_backup');
+            formData.append('csrf_token', csrfToken);
+
+            const response = await fetch('process/process.php', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-Token': csrfToken
+                }
+            });
+
+            const result = await response.json();
+            const isSuccess = result.success === true || result.status === 'success';
+
+            if (isSuccess) {
+                if (result.data && Array.isArray(result.data.backups)) {
+                    renderBackupsTable(result.data.backups);
+                } else {
+                    refreshBackupsList();
+                }
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Backup Created!',
+                        html: `
+                            <p class="mb-2">SiteWare database snapshot generated successfully.</p>
+                            <div class="p-2 border rounded bg-light font-monospace small mb-2 text-dark">
+                                ${escapeHtml(result.data?.backup?.filename || 'Backup file')}
+                            </div>
+                            <small class="text-muted">Total records exported: <strong>${result.data?.backup?.total_rows || 'N/A'}</strong> (${result.data?.backup?.filesize_formatted || ''})</small>
+                        `,
+                        confirmButtonColor: '#1e293b'
+                    });
+                }
+            } else {
+                throw new Error(result.message || 'Failed to generate backup.');
+            }
+        } catch (error) {
+            console.error('Create Backup Error:', error);
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Backup Failed',
+                    text: error.message || 'Unable to generate database backup.'
+                });
+            } else {
+                alert(error.message || 'Unable to generate database backup.');
+            }
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+    }
+
+    // 2. Action: Restore Database from Server File
+    function confirmServerRestore(filename) {
+        if (typeof Swal === 'undefined') {
+            if (!confirm(`Warning: Restoring will overwrite existing records. Proceed with restoring ${filename}?`)) return;
+            executeServerRestore(filename);
+            return;
+        }
+
+        Swal.fire({
+            title: 'Restore Database?',
+            html: `
+                <div class="text-start">
+                    <p class="mb-2">You are about to restore the database from:</p>
+                    <div class="p-2 bg-light border rounded font-monospace small mb-3 text-dark fw-bold">
+                        ${escapeHtml(filename)}
+                    </div>
+                    <div class="alert alert-warning py-2 px-3 small border-0 mb-0">
+                        <i class="bi bi-shield-check text-success me-1"></i>
+                        <strong>Safety Guarantee:</strong> An automated safety snapshot will be created immediately before changes are applied.
+                    </div>
+                </div>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="bi bi-arrow-counterclockwise me-1"></i> Yes, Restore Database',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                executeServerRestore(filename);
+            }
+        });
+    }
+
+    async function executeServerRestore(filename) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Restoring Database...',
+                html: 'Applying database snapshot. Please do not close this window.',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+        }
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const formData = new FormData();
+            formData.append('action', 'restore_backup');
+            formData.append('source_type', 'server');
+            formData.append('filename', filename);
+            formData.append('csrf_token', csrfToken);
+
+            const response = await fetch('process/process.php', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-Token': csrfToken
+                }
+            });
+
+            const result = await response.json();
+            const isSuccess = result.success === true || result.status === 'success';
+
+            if (isSuccess) {
+                if (result.data && Array.isArray(result.data.backups)) {
+                    renderBackupsTable(result.data.backups);
+                } else {
+                    refreshBackupsList();
+                }
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Database Restored!',
+                        html: `
+                            <p class="mb-2 text-dark">SiteWare database was restored successfully.</p>
+                            <div class="small text-muted mb-2">
+                                Queries executed: <strong>${result.data?.restore_summary?.queries_executed || 'N/A'}</strong>
+                                (${result.data?.restore_summary?.duration_seconds || '0'}s)
+                            </div>
+                            <div class="p-2 border rounded bg-light text-start small">
+                                <span class="fw-bold text-success d-block"><i class="bi bi-check-circle-fill me-1"></i> Pre-restore safety snapshot created:</span>
+                                <span class="font-monospace text-dark">${escapeHtml(result.data?.restore_summary?.safety_snapshot || 'Created')}</span>
+                            </div>
+                        `,
+                        confirmButtonColor: '#1e293b'
+                    });
+                }
+            } else {
+                throw new Error(result.message || 'Failed to restore database.');
+            }
+        } catch (error) {
+            console.error('Restore Error:', error);
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Restoration Failed',
+                    text: error.message || 'An error occurred during database restoration.'
+                });
+            } else {
+                alert(error.message || 'An error occurred during database restoration.');
+            }
+        }
+    }
+
+    // 3. Action: Delete a Backup File
+    function confirmDeleteBackup(filename) {
+        if (typeof Swal === 'undefined') {
+            if (!confirm(`Delete backup file ${filename}?`)) return;
+            executeDeleteBackup(filename);
+            return;
+        }
+
+        Swal.fire({
+            title: 'Delete Backup File?',
+            html: `Are you sure you want to permanently delete <strong class="font-monospace text-danger">${escapeHtml(filename)}</strong>?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="bi bi-trash me-1"></i> Yes, Delete',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                executeDeleteBackup(filename);
+            }
+        });
+    }
+
+    async function executeDeleteBackup(filename) {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const formData = new FormData();
+            formData.append('action', 'delete_backup');
+            formData.append('filename', filename);
+            formData.append('csrf_token', csrfToken);
+
+            const response = await fetch('process/process.php', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-Token': csrfToken
+                }
+            });
+
+            const result = await response.json();
+            const isSuccess = result.success === true || result.status === 'success';
+
+            if (isSuccess) {
+                if (result.data && Array.isArray(result.data.backups)) {
+                    renderBackupsTable(result.data.backups);
+                } else {
+                    refreshBackupsList();
+                }
+
+                if (typeof Swal !== 'undefined') {
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 2000,
+                        timerProgressBar: true
+                    });
+                    Toast.fire({
+                        icon: 'success',
+                        title: 'Backup file deleted.'
+                    });
+                }
+            } else {
+                throw new Error(result.message || 'Failed to delete backup file.');
+            }
+        } catch (error) {
+            console.error('Delete Error:', error);
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Delete Failed',
+                    text: error.message || 'Unable to delete backup file.'
+                });
+            } else {
+                alert(error.message || 'Unable to delete backup file.');
+            }
+        }
+    }
+
+    // 4. Modal Lifecycle & Upload Form Submission (Complies with CIMS Modal AJAX Skill)
+    document.addEventListener('DOMContentLoaded', () => {
+        const restoreModalEl = document.getElementById('restoreBackupModal');
+        const restoreForm = document.getElementById('restoreUploadForm');
+
+        if (restoreModalEl) {
+            // Auto-focus primary input on open (Skill Principle 3)
+            restoreModalEl.addEventListener('shown.bs.modal', () => {
+                const fileInput = document.getElementById('restoreBackupFileInput');
+                if (fileInput) fileInput.focus();
+            });
+
+            // Clean up and reset on modal close (Skill Principle 3)
+            restoreModalEl.addEventListener('hidden.bs.modal', () => {
+                if (restoreForm) {
+                    restoreForm.reset();
+                    restoreForm.classList.remove('was-validated');
+                }
+            });
+        }
+
+        if (restoreForm) {
+            restoreForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const submitBtn = document.getElementById('btnSubmitRestoreUpload');
+                const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Restore Database';
+
+                // Client-side validation
+                if (!restoreForm.checkValidity()) {
+                    restoreForm.reportValidity();
+                    return;
+                }
+
+                const safetyCheck = document.getElementById('restoreSafetyCheckbox');
+                if (safetyCheck && !safetyCheck.checked) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Confirmation Required',
+                            text: 'Please check the confirmation box before proceeding with database restore.'
+                        });
+                    } else {
+                        alert('Please check the confirmation box before proceeding with database restore.');
+                    }
+                    return;
+                }
+
+                // Prevent double submit & show loading state (Skill Principle 2)
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Restoring Database...';
+                }
+
+                try {
+                    const formData = new FormData(restoreForm);
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    formData.append('csrf_token', csrfToken);
+
+                    const response = await fetch('process/process.php', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-Token': csrfToken
+                        }
+                    });
+
+                    const result = await response.json();
+                    const isSuccess = result.success === true || result.status === 'success';
+
+                    if (isSuccess) {
+                        // Hide modal
+                        const modalInstance = bootstrap.Modal.getInstance(restoreModalEl);
+                        if (modalInstance) modalInstance.hide();
+
+                        // Refresh table with returned backups
+                        if (result.data && Array.isArray(result.data.backups)) {
+                            renderBackupsTable(result.data.backups);
+                        } else {
+                            refreshBackupsList();
+                        }
+
+                        // Success notification via SweetAlert2 (Skill Principle 4)
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Database Restored!',
+                                html: `
+                                    <p class="mb-2 text-dark">The uploaded SQL backup has been successfully imported.</p>
+                                    <div class="small text-muted mb-2">
+                                        Queries executed: <strong>${result.data?.restore_summary?.queries_executed || 'N/A'}</strong>
+                                    </div>
+                                    <div class="p-2 border rounded bg-light text-start small">
+                                        <span class="fw-bold text-success d-block"><i class="bi bi-check-circle-fill me-1"></i> Safety Pre-restore Snapshot:</span>
+                                        <span class="font-monospace text-dark">${escapeHtml(result.data?.restore_summary?.safety_snapshot || 'Created')}</span>
+                                    </div>
+                                `,
+                                confirmButtonColor: '#1e293b'
+                            });
+                        }
+                    } else {
+                        throw new Error(result.message || 'Failed to restore database.');
+                    }
+                } catch (error) {
+                    console.error('Upload Restore Error:', error);
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Restore Failed',
+                            text: error.message || 'Failed to process uploaded backup file.'
+                        });
+                    } else {
+                        alert(error.message || 'Failed to process uploaded backup file.');
+                    }
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                    }
+                }
+            });
+        }
+    });
 </script>
 
 <?php include 'layout/footer.php'; ?>
