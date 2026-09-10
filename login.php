@@ -125,6 +125,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_locked_out) {
                     $lockout_retry_after = $newRl['retry_after'];
                     $mins = ceil($lockout_retry_after / 60);
                     $error = "Too many failed login attempts. Please wait {$mins} minute(s) before trying again.";
+
+                    // 🛡️ Automated Attack-Detection: Freeze database state into a Security Incident Snapshot
+                    try {
+                        require_once __DIR__ . '/classes/BackupService.php';
+                        $bs = new BackupService($pdo);
+                        $bs->triggerSecurityIncidentSnapshot('Brute-force lockout on username: ' . $username, get_client_ip());
+                    } catch (Throwable $secErr) {
+                        // Silent failover so security exception never breaks the lockout response
+                    }
                 } else {
                     $remaining = $newRl['remaining'];
                     if ($remaining <= 2 && $remaining > 0) {
