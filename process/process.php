@@ -62,7 +62,7 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
            (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
            (strpos($action, 'fetch_') === 0) ||
-           (in_array($action, ['live_sync', 'stock_in_scanned', 'verify_current_password', 'change_password_modal', 'submit_audit']));
+           (in_array($action, ['live_sync', 'stock_in_scanned', 'verify_current_password', 'change_password_modal', 'submit_audit', 'create_backup', 'restore_backup', 'delete_backup', 'fetch_backups']));
 
 if ($is_ajax) {
     ob_start();
@@ -72,7 +72,7 @@ if ($is_ajax) {
 if ($requestMethod === 'POST' || (strpos($action, 'fetch_') === 0 && !empty($action))) {
 
     // Anti-Double Submit / Rapid Spam Throttling on Mutating Actions
-    $mutatingActions = ['create_rs', 'create_withdrawal', 'create_po', 'mark_po_delivered', 'cancel_po', 'submit_audit', 'add', 'edit', 'delete', 'add_user', 'add_supplier'];
+    $mutatingActions = ['create_rs', 'create_withdrawal', 'create_po', 'mark_po_delivered', 'cancel_po', 'submit_audit', 'add', 'edit', 'delete', 'add_user', 'add_supplier', 'create_backup', 'restore_backup', 'delete_backup'];
     if (in_array($action, $mutatingActions)) {
         $throttleKey = 'post_' . $action . '_user_' . $_SESSION['user_id'];
         $throttle = check_rate_limit($throttleKey, 1, 2);
@@ -95,6 +95,8 @@ if ($requestMethod === 'POST' || (strpos($action, 'fetch_') === 0 && !empty($act
             require __DIR__ . '/module_transactions.php';
         } elseif ($action === 'submit_audit') {
             require __DIR__ . '/module_audit.php';
+        } elseif (in_array($action, ['create_backup', 'restore_backup', 'delete_backup', 'fetch_backups', 'download_backup'])) {
+            require __DIR__ . '/module_backup.php';
         } elseif (in_array($action, ['add_unit', 'edit_unit', 'delete_unit', 'add_category', 'edit_category', 'delete_category', 'add_project', 'edit_project', 'delete_project', 'toggle_project_status', 'fetch_project_details', 'update_login_bg', 'reset_login_bg', 'update_login_blur'])) {
             require __DIR__ . '/module_settings.php';
         } else {
