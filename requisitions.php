@@ -605,7 +605,7 @@ include 'layout/header.php';
                             <div class="input-group shadow-sm">
                                 <span class="input-group-text bg-white text-muted"><i class="bi bi-person-fill text-primary"></i></span>
                                 <select id="filterRsRequestor" class="form-select bg-white fw-bold small">
-                                    <option value="all">All Requestors</option>
+                                    <option value="all">All Project Engineers / Requestors</option>
                                     <option value="me">👤 Requested by Me</option>
                                     <?php foreach ($rsRequestorsList as $req): ?>
                                         <?php if ((int)$req['requestor_id'] !== (int)$userId): ?>
