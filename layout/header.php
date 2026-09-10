@@ -82,7 +82,7 @@ $headerRoles = [
     'warehouse' => ['label' => 'Warehouse In-Charge', 'class' => 'bg-success'],
     'management' => ['label' => 'Management / Approver', 'class' => 'bg-warning text-dark'],
     'purchasing' => ['label' => 'Purchasing Officer', 'class' => 'bg-info text-dark'],
-    'requestor' => ['label' => 'Requestor', 'class' => 'bg-secondary']
+    'requestor' => ['label' => 'Project Engineer', 'class' => 'bg-secondary']
 ];
 
 $userBadgeClass = $headerRoles[$currentUserRole]['class'] ?? 'bg-secondary';
