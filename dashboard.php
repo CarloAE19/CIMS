@@ -18,7 +18,7 @@ $roleDisplay = [
     'warehouse' => ['label' => 'Warehouse In-Charge', 'class' => 'bg-success', 'icon' => 'bi-house-gear-fill', 'greeting' => 'Warehouse Operations'],
     'management' => ['label' => 'Management / Approver', 'class' => 'bg-warning text-dark', 'icon' => 'bi-briefcase-fill', 'greeting' => 'Management Control Center'],
     'purchasing' => ['label' => 'Purchasing Officer', 'class' => 'bg-info text-dark', 'icon' => 'bi-cart-check-fill', 'greeting' => 'Purchasing Hub'],
-    'requestor' => ['label' => 'Requestor', 'class' => 'bg-secondary', 'icon' => 'bi-person-fill-gear', 'greeting' => 'My Workspace']
+    'requestor' => ['label' => 'Project Engineer', 'class' => 'bg-secondary', 'icon' => 'bi-person-fill-gear', 'greeting' => 'Site Operations & Requisitions']
 ];
 
 $currentRole = $roleDisplay[$role] ?? $roleDisplay['requestor'];
