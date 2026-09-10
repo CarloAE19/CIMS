@@ -15,8 +15,12 @@ require_once 'classes/BackupService.php';
 $validTabs = ['users', 'categories', 'units', 'projects', 'general', 'backup'];
 $activeTab = isset($_GET['tab']) && in_array($_GET['tab'], $validTabs) ? $_GET['tab'] : 'users';
 
-// Initialize SiteWare Backup Service
+// Initialize SiteWare Backup Service & Auto-Daily Backup
 $backupService = new BackupService($pdo);
+try {
+    $backupService->runScheduledDailyBackup(14);
+} catch (Throwable $e) {
+}
 $backupFiles = $backupService->listBackups();
 
 // ==========================================
@@ -165,6 +169,42 @@ include 'layout/header.php';
             white-space: nowrap;
             flex-shrink: 0;
         }
+
+        /* Mobile Touch & Multi-Device Optimizations for SiteWare Backup & Recovery */
+        .backup-mobile-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        [data-bs-theme="dark"] .backup-mobile-card {
+            background: #1e293b;
+            border-color: #334155;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        }
+
+        .backup-mobile-actions .btn {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.82rem;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+
+        .backup-action-header-btns .btn {
+            min-height: 46px;
+            border-radius: 10px;
+        }
+
+        .backup-mobile-card:active {
+            transform: scale(0.99);
+        }
     }
 </style>
 
@@ -242,7 +282,8 @@ include 'layout/header.php';
                     data-bs-toggle="pill" data-bs-target="#tab-backup" type="button" role="tab"
                     onclick="switchSettingsTab('backup')">
                     <i class="bi bi-shield-lock-fill text-info"></i> Backup &amp; Restore
-                    <span class="badge rounded-pill bg-secondary badge-count ms-1" id="backupNavBadge"><?= count($backupFiles) ?></span>
+                    <span class="badge rounded-pill bg-secondary badge-count ms-1"
+                        id="backupNavBadge"><?= count($backupFiles) ?></span>
                 </button>
             </li>
         </ul>
@@ -323,7 +364,8 @@ include 'layout/header.php';
                                             <form method="POST" action="process/process.php" class="d-inline"
                                                 onsubmit="return confirm('Are you sure you want to <?= $isActive ? 'deactivate' : 'activate' ?> <?= htmlspecialchars(addslashes($user['name'])) ?>?');">
                                                 <input type="hidden" name="action" value="toggle_user_status">
-                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
+                                                <input type="hidden" name="csrf_token"
+                                                    value="<?= htmlspecialchars(generate_csrf_token()) ?>">
                                                 <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
                                                 <input type="hidden" name="return_tab" value="users">
                                                 <?php if ($isActive): ?>
@@ -535,14 +577,19 @@ include 'layout/header.php';
 
                 <!-- Quick Status Filter Pills -->
                 <div class="d-flex flex-wrap gap-2 mb-3">
-                    <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 proj-filter-btn active" data-filter="all" onclick="filterProjectsTable('all', this)">
+                    <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 proj-filter-btn active"
+                        data-filter="all" onclick="filterProjectsTable('all', this)">
                         All Projects <span class="badge bg-secondary ms-1"><?= count($projects) ?></span>
                     </button>
-                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 proj-filter-btn" data-filter="active" onclick="filterProjectsTable('active', this)">
-                        <i class="bi bi-check-circle me-1"></i>Active Sites <span class="badge bg-success ms-1"><?= count(array_filter($projects, fn($p) => ($p['status'] ?? '') === 'active')) ?></span>
+                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 proj-filter-btn"
+                        data-filter="active" onclick="filterProjectsTable('active', this)">
+                        <i class="bi bi-check-circle me-1"></i>Active Sites <span
+                            class="badge bg-success ms-1"><?= count(array_filter($projects, fn($p) => ($p['status'] ?? '') === 'active')) ?></span>
                     </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 proj-filter-btn" data-filter="inactive" onclick="filterProjectsTable('inactive', this)">
-                        <i class="bi bi-pause-circle me-1"></i>Inactive / Completed <span class="badge bg-secondary ms-1"><?= count(array_filter($projects, fn($p) => ($p['status'] ?? '') !== 'active')) ?></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 proj-filter-btn"
+                        data-filter="inactive" onclick="filterProjectsTable('inactive', this)">
+                        <i class="bi bi-pause-circle me-1"></i>Inactive / Completed <span
+                            class="badge bg-secondary ms-1"><?= count(array_filter($projects, fn($p) => ($p['status'] ?? '') !== 'active')) ?></span>
                     </button>
                 </div>
 
@@ -562,10 +609,10 @@ include 'layout/header.php';
                         <tbody>
                             <?php if (count($projects) > 0): ?>
                                 <?php foreach ($projects as $proj): ?>
-                                    <?php 
-                                        $rsCount = (int)($proj['rs_count'] ?? 0);
-                                        $wsCount = (int)($proj['ws_count'] ?? 0);
-                                        $totalUsage = $rsCount + $wsCount;
+                                    <?php
+                                    $rsCount = (int) ($proj['rs_count'] ?? 0);
+                                    $wsCount = (int) ($proj['ws_count'] ?? 0);
+                                    $totalUsage = $rsCount + $wsCount;
                                     ?>
                                     <tr data-status="<?= htmlspecialchars($proj['status'] ?? 'active') ?>">
                                         <td class="text-muted fw-bold" data-label="ID">
@@ -588,12 +635,16 @@ include 'layout/header.php';
                                         <td class="text-center" data-label="Linked Activity">
                                             <div class="d-flex flex-wrap gap-1 justify-content-center">
                                                 <?php if ($rsCount > 0): ?>
-                                                    <a href="requisitions?search=<?= urlencode($proj['project_name']) ?>" class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 text-decoration-none shadow-sm" title="View <?= $rsCount ?> Material Requisition(s)">
+                                                    <a href="requisitions?search=<?= urlencode($proj['project_name']) ?>"
+                                                        class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 text-decoration-none shadow-sm"
+                                                        title="View <?= $rsCount ?> Material Requisition(s)">
                                                         <i class="bi bi-file-earmark-text me-1"></i><?= $rsCount ?> RS
                                                     </a>
                                                 <?php endif; ?>
                                                 <?php if ($wsCount > 0): ?>
-                                                    <a href="withdrawals?search=<?= urlencode($proj['project_name']) ?>" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 text-decoration-none shadow-sm" title="View <?= $wsCount ?> Withdrawal Slip(s)">
+                                                    <a href="withdrawals?search=<?= urlencode($proj['project_name']) ?>"
+                                                        class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 text-decoration-none shadow-sm"
+                                                        title="View <?= $wsCount ?> Withdrawal Slip(s)">
                                                         <i class="bi bi-box-arrow-right me-1"></i><?= $wsCount ?> WS
                                                     </a>
                                                 <?php endif; ?>
@@ -609,11 +660,15 @@ include 'layout/header.php';
                                                 <input type="hidden" name="project_id" value="<?= $proj['id'] ?>">
                                                 <input type="hidden" name="return_tab" value="projects">
                                                 <?php if ($proj['status'] === 'active'): ?>
-                                                    <button type="submit" class="btn btn-sm btn-success rounded-pill px-3 py-1 shadow-sm" title="Active Project — Click to mark Inactive">
+                                                    <button type="submit"
+                                                        class="btn btn-sm btn-success rounded-pill px-3 py-1 shadow-sm"
+                                                        title="Active Project — Click to mark Inactive">
                                                         <i class="bi bi-check-circle-fill me-1"></i>Active
                                                     </button>
                                                 <?php else: ?>
-                                                    <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 shadow-sm" title="Inactive Project — Click to mark Active">
+                                                    <button type="submit"
+                                                        class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 shadow-sm"
+                                                        title="Inactive Project — Click to mark Active">
                                                         <i class="bi bi-pause-circle me-1"></i>Inactive
                                                     </button>
                                                 <?php endif; ?>
@@ -630,7 +685,8 @@ include 'layout/header.php';
                                                 <i class="bi bi-pencil-square"></i> Edit
                                             </button>
                                             <?php if ($totalUsage > 0): ?>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm disabled" title="Cannot delete: Linked to <?= $rsCount ?> RS and <?= $wsCount ?> WS">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm disabled"
+                                                    title="Cannot delete: Linked to <?= $rsCount ?> RS and <?= $wsCount ?> WS">
                                                     <i class="bi bi-trash3"></i>
                                                 </button>
                                             <?php else: ?>
@@ -639,7 +695,8 @@ include 'layout/header.php';
                                                     <input type="hidden" name="action" value="delete_project">
                                                     <input type="hidden" name="project_id" value="<?= $proj['id'] ?>">
                                                     <input type="hidden" name="return_tab" value="projects">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger shadow-sm" title="Delete Project">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger shadow-sm"
+                                                        title="Delete Project">
                                                         <i class="bi bi-trash3"></i>
                                                     </button>
                                                 </form>
@@ -769,12 +826,15 @@ include 'layout/header.php';
                             </div>
 
                             <!-- Remember Me & Forgot Password replica -->
-                            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:14px;text-align:left;">
+                            <div
+                                style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:14px;text-align:left;">
                                 <div style="display:flex;align-items:center;gap:6px;">
-                                    <div style="width:14px;height:14px;border:1.5px solid #cbd5e1;border-radius:4px;background:#fff;display:flex;align-items:center;justify-content:center;">
+                                    <div
+                                        style="width:14px;height:14px;border:1.5px solid #cbd5e1;border-radius:4px;background:#fff;display:flex;align-items:center;justify-content:center;">
                                         <i class="bi bi-check" style="font-size:0.75rem;color:#4f46e5;"></i>
                                     </div>
-                                    <span style="font-size:0.72rem;color:#475569;font-weight:500;">Remember username</span>
+                                    <span style="font-size:0.72rem;color:#475569;font-weight:500;">Remember
+                                        username</span>
                                 </div>
                                 <span style="font-size:0.72rem;color:#4f46e5;font-weight:600;">Forgot password?</span>
                             </div>
@@ -893,29 +953,31 @@ include 'layout/header.php';
         <!-- ======================================================== -->
         <div class="tab-pane fade <?= $activeTab === 'backup' ? 'show active' : '' ?>" id="tab-backup" role="tabpanel">
             <div class="card border-0 shadow-sm p-3 p-md-4 bg-white">
-                
+
                 <!-- Section Header Banner & Quick Actions -->
                 <div class="row align-items-center mb-4 g-3">
                     <div class="col-12 col-lg-7 text-center text-lg-start">
-                        <div class="d-flex align-items-center justify-content-center justify-content-lg-start gap-2 mb-1">
-                            <span class="badge bg-info text-dark px-3 py-1 fw-bold rounded-pill text-uppercase" style="font-size: 0.72rem;">
-                                <i class="bi bi-shield-check me-1"></i>ISO/IEC 25010 Data Protection
-                            </span>
-                        </div>
                         <h4 class="mb-1 fw-bold text-dark">
-                            <i class="bi bi-database-fill-gear me-2 text-info"></i>SiteWare Backup &amp; Disaster Recovery
+                            <i class="bi bi-database-fill-gear me-2 text-info"></i>SiteWare Backup &amp; Disaster
+                            Recovery
                         </h4>
                         <small class="text-muted">
-                            Create on-demand database snapshots, download SQL backup archives, or restore the database to a prior verified state.
+                            Create on-demand database snapshots, download SQL backup archives, or restore the database
+                            to a prior verified state.
                         </small>
                     </div>
                     <div class="col-12 col-lg-5 text-center text-lg-end">
-                        <div class="d-flex flex-wrap gap-2 justify-content-center justify-content-lg-end">
-                            <button type="button" class="btn btn-brand fw-bold px-3 py-2 shadow-sm d-flex align-items-center gap-2" id="btnCreateBackup" onclick="handleCreateBackup()">
+                        <div
+                            class="d-grid d-sm-flex flex-wrap gap-2 justify-content-center justify-content-lg-end backup-action-header-btns">
+                            <button type="button"
+                                class="btn btn-brand fw-bold px-3 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2"
+                                id="btnCreateBackup" onclick="handleCreateBackup()">
                                 <i class="bi bi-cloud-arrow-down-fill"></i>
                                 <span>Create Backup Now</span>
                             </button>
-                            <button type="button" class="btn btn-outline-primary fw-bold px-3 py-2 shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#restoreBackupModal">
+                            <button type="button"
+                                class="btn btn-outline-primary fw-bold px-3 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2"
+                                data-bs-toggle="modal" data-bs-target="#restoreBackupModal">
                                 <i class="bi bi-cloud-arrow-up-fill"></i>
                                 <span>Upload &amp; Restore</span>
                             </button>
@@ -927,23 +989,27 @@ include 'layout/header.php';
                 <div class="row g-3 mb-4">
                     <div class="col-12 col-md-4">
                         <div class="p-3 border rounded-3 bg-light d-flex align-items-center gap-3 h-100 shadow-sm">
-                            <div class="rounded-circle bg-primary bg-opacity-10 p-3 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                            <div class="rounded-circle bg-primary bg-opacity-10 p-3 text-primary d-flex align-items-center justify-content-center"
+                                style="width: 48px; height: 48px;">
                                 <i class="bi bi-server fs-5"></i>
                             </div>
                             <div>
                                 <div class="text-muted small fw-semibold text-uppercase">Stored Backups</div>
-                                <div class="fs-5 fw-bold text-dark" id="statBackupCount"><?= count($backupFiles) ?> Files</div>
+                                <div class="fs-5 fw-bold text-dark" id="statBackupCount"><?= count($backupFiles) ?>
+                                    Files</div>
                             </div>
                         </div>
                     </div>
                     <div class="col-12 col-md-4">
                         <div class="p-3 border rounded-3 bg-light d-flex align-items-center gap-3 h-100 shadow-sm">
-                            <div class="rounded-circle bg-success bg-opacity-10 p-3 text-success d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                            <div class="rounded-circle bg-success bg-opacity-10 p-3 text-success d-flex align-items-center justify-content-center"
+                                style="width: 48px; height: 48px;">
                                 <i class="bi bi-clock-history fs-5"></i>
                             </div>
                             <div>
                                 <div class="text-muted small fw-semibold text-uppercase">Latest Snapshot</div>
-                                <div class="fs-6 fw-bold text-dark text-truncate" style="max-width: 200px;" id="statLatestBackup">
+                                <div class="fs-6 fw-bold text-dark text-truncate" style="max-width: 200px;"
+                                    id="statLatestBackup">
                                     <?= !empty($backupFiles) ? htmlspecialchars($backupFiles[0]['created_at_relative']) : 'None created yet' ?>
                                 </div>
                             </div>
@@ -951,7 +1017,8 @@ include 'layout/header.php';
                     </div>
                     <div class="col-12 col-md-4">
                         <div class="p-3 border rounded-3 bg-light d-flex align-items-center gap-3 h-100 shadow-sm">
-                            <div class="rounded-circle bg-warning bg-opacity-10 p-3 text-warning d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                            <div class="rounded-circle bg-warning bg-opacity-10 p-3 text-warning d-flex align-items-center justify-content-center"
+                                style="width: 48px; height: 48px;">
                                 <i class="bi bi-shield-lock-fill fs-5 text-dark"></i>
                             </div>
                             <div>
@@ -963,14 +1030,90 @@ include 'layout/header.php';
                 </div>
 
                 <!-- Callout Banner on Safe Recovery -->
-                <div class="alert alert-info border-0 shadow-sm d-flex align-items-start gap-3 mb-4 rounded-3" role="alert">
+                <div class="alert alert-info border-0 shadow-sm d-flex align-items-start gap-3 mb-4 rounded-3"
+                    role="alert">
                     <i class="bi bi-info-circle-fill fs-4 flex-shrink-0 text-info"></i>
                     <div class="small">
-                        <strong class="d-block mb-1 text-dark">Enterprise Risk Mitigation &amp; ISO 9001 Process Control:</strong>
+                        <strong class="d-block mb-1 text-dark">Enterprise Risk Mitigation & Process
+                            Control:</strong>
                         <span class="text-secondary">
-                            Before restoring any database file, SiteWare automatically compiles a safety pre-restore backup (prefixed with <code>siteware_auto_prerestore_</code>).
-                            If an unintended restore occurs, you can instantly revert by selecting the automated safety snapshot from the list below.
+                            Before restoring any database file, SiteWare automatically compiles a safety pre-restore
+                            backup (prefixed with <code>siteware_auto_prerestore_</code>).
+                            If an unintended restore occurs, you can instantly revert by selecting the automated safety
+                            snapshot from the list below.
                         </span>
+                    </div>
+                </div>
+
+                <!-- Cyber-Defense & Automation Status Panel -->
+                <div class="card border-0 bg-light p-3 p-md-4 mb-4 rounded-3 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-danger p-2"><i class="bi bi-shield-shaded"></i></span>
+                            <h6 class="fw-bold mb-0 text-dark">Automated Cyber-Defense &amp; Scheduling Engine</h6>
+                        </div>
+                        <span class="badge bg-success-subtle text-success border border-success fw-bold px-3 py-1">
+                            <i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i> Active Protection
+                        </span>
+                    </div>
+
+                    <div class="row g-3">
+                        <!-- Attack Detection Status -->
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <div class="p-3 bg-white rounded-3 border h-100 shadow-sm">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="small fw-bold text-muted text-uppercase">Attack-Detection
+                                        Trigger</span>
+                                    <span class="badge bg-danger text-white">Armed</span>
+                                </div>
+                                <div class="small text-dark mb-1 fw-semibold">
+                                    <i class="bi bi-cpu text-danger me-1"></i> Brute-Force Freeze
+                                </div>
+                                <div class="text-muted" style="font-size: 0.78rem;">
+                                    Automatically freezes a <code>siteware_security_snapshot_</code> when 5+ failed
+                                    login attempts trigger an account lockout. Protected by 30-min anti-spam cooldown.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Daily Backup Status -->
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <div class="p-3 bg-white rounded-3 border h-100 shadow-sm">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="small fw-bold text-muted text-uppercase">Scheduled Daily Backups</span>
+                                    <span class="badge bg-info text-dark">Zero-Config</span>
+                                </div>
+                                <div class="small text-dark mb-1 fw-semibold">
+                                    <i class="bi bi-calendar-check text-info me-1"></i> Daily Heartbeat
+                                </div>
+                                <div class="text-muted" style="font-size: 0.78rem;">
+                                    Runs daily on first admin activity or CLI cron. Generates
+                                    <code>siteware_daily_</code> snapshots and auto-purges snapshots older than 14 days.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Windows Task Scheduler CLI Info -->
+                        <div class="col-12 col-md-12 col-lg-4">
+                            <div class="p-3 bg-white rounded-3 border h-100 shadow-sm">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="small fw-bold text-muted text-uppercase">Windows Task Scheduler</span>
+                                    <span class="badge bg-secondary text-white">CLI Ready</span>
+                                </div>
+                                <div class="small text-dark mb-1 fw-semibold">
+                                    <i class="bi bi-terminal text-primary me-1"></i> Headless Runner
+                                </div>
+                                <div class="input-group input-group-sm mt-1">
+                                    <input type="text" class="form-control font-monospace" style="font-size: 0.72rem;"
+                                        value="C:\xampp\php\php.exe <?= htmlspecialchars(str_replace('/', '\\', dirname(__FILE__))) ?>\scripts\auto_backup.php"
+                                        id="cliTaskCmd" readonly>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="copyCliCommand()"
+                                        title="Copy command">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -980,16 +1123,19 @@ include 'layout/header.php';
                         <h5 class="fw-bold mb-0 text-dark">
                             <i class="bi bi-archive-fill me-2 text-secondary"></i>Backup Archives Repository
                         </h5>
-                        <small class="text-muted">Directly download, restore, or delete database files securely stored on the server.</small>
+                        <small class="text-muted">Directly download, restore, or delete database files securely stored
+                            on the server.</small>
                     </div>
                     <div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="refreshBackupsList(true)">
+                        <button type="button" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm"
+                            onclick="refreshBackupsList(true)">
                             <i class="bi bi-arrow-clockwise me-1" id="refreshBackupsSpinner"></i> Refresh List
                         </button>
                     </div>
                 </div>
 
-                <div class="table-responsive border rounded-3 shadow-sm">
+                <!-- Desktop Table View (>= 768px) -->
+                <div class="d-none d-md-block table-responsive border rounded-3 shadow-sm mb-3">
                     <table class="table table-hover align-middle mb-0 text-nowrap" id="backupsTable">
                         <thead class="table-dark">
                             <tr>
@@ -1004,10 +1150,13 @@ include 'layout/header.php';
                             <?php if (empty($backupFiles)): ?>
                                 <tr id="noBackupsRow">
                                     <td colspan="5" class="text-center py-5 text-muted">
-                                        <i class="bi bi-database-exclamation fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                                        <i
+                                            class="bi bi-database-exclamation fs-1 d-block mb-2 text-secondary opacity-50"></i>
                                         <h6 class="fw-bold mb-1">No database backups found</h6>
-                                        <p class="small mb-3">Click &ldquo;Create Backup Now&rdquo; to generate your first SiteWare database backup.</p>
-                                        <button type="button" class="btn btn-sm btn-brand fw-bold px-3 shadow-sm" onclick="handleCreateBackup()">
+                                        <p class="small mb-3">Click &ldquo;Create Backup Now&rdquo; to generate your first
+                                            SiteWare database backup.</p>
+                                        <button type="button" class="btn btn-sm btn-brand fw-bold px-3 shadow-sm"
+                                            onclick="handleCreateBackup()">
                                             <i class="bi bi-cloud-arrow-down-fill me-1"></i> Create Backup Now
                                         </button>
                                     </td>
@@ -1018,11 +1167,13 @@ include 'layout/header.php';
                                         <td>
                                             <div class="d-flex align-items-center gap-2">
                                                 <i class="bi bi-file-earmark-code-fill text-primary fs-5"></i>
-                                                <span class="fw-bold text-dark font-monospace"><?= htmlspecialchars($backup['filename']) ?></span>
+                                                <span
+                                                    class="fw-bold text-dark font-monospace"><?= htmlspecialchars($backup['filename']) ?></span>
                                             </div>
                                         </td>
                                         <td class="text-center">
-                                            <span class="badge rounded-pill <?= $backup['badge_class'] ?> px-2 py-1 fw-bold" style="font-size: 0.72rem;">
+                                            <span class="badge rounded-pill <?= $backup['badge_class'] ?> px-2 py-1 fw-bold"
+                                                style="font-size: 0.72rem;">
                                                 <?= htmlspecialchars($backup['type_label']) ?>
                                             </span>
                                         </td>
@@ -1030,32 +1181,32 @@ include 'layout/header.php';
                                             <?= htmlspecialchars($backup['filesize_formatted']) ?>
                                         </td>
                                         <td>
-                                            <div class="text-dark fw-semibold small"><?= htmlspecialchars($backup['created_at']) ?></div>
-                                            <small class="text-muted" style="font-size: 0.75rem;"><?= htmlspecialchars($backup['created_at_relative']) ?></small>
+                                            <div class="text-dark fw-semibold small">
+                                                <?= htmlspecialchars($backup['created_at']) ?>
+                                            </div>
+                                            <small class="text-muted"
+                                                style="font-size: 0.75rem;"><?= htmlspecialchars($backup['created_at_relative']) ?></small>
                                         </td>
                                         <td class="text-center">
                                             <div class="d-inline-flex gap-1">
                                                 <!-- Download Button -->
-                                                <a href="process/module_backup.php?action=download_backup&file=<?= urlencode($backup['filename']) ?>" 
-                                                   class="btn btn-sm btn-outline-success" 
-                                                   title="Download SQL File"
-                                                   aria-label="Download <?= htmlspecialchars($backup['filename']) ?>">
+                                                <a href="process/module_backup.php?action=download_backup&file=<?= urlencode($backup['filename']) ?>"
+                                                    class="btn btn-sm btn-outline-success" title="Download SQL File"
+                                                    aria-label="Download <?= htmlspecialchars($backup['filename']) ?>">
                                                     <i class="bi bi-download"></i>
                                                 </a>
                                                 <!-- Restore Button -->
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-warning text-dark fw-bold" 
-                                                        title="Restore Database from this file"
-                                                        aria-label="Restore database from <?= htmlspecialchars($backup['filename']) ?>"
-                                                        onclick="confirmServerRestore('<?= htmlspecialchars(addslashes($backup['filename'])) ?>')">
+                                                <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold"
+                                                    title="Restore Database from this file"
+                                                    aria-label="Restore database from <?= htmlspecialchars($backup['filename']) ?>"
+                                                    onclick="confirmServerRestore('<?= htmlspecialchars(addslashes($backup['filename'])) ?>')">
                                                     <i class="bi bi-arrow-counterclockwise"></i> Restore
                                                 </button>
                                                 <!-- Delete Button -->
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-danger" 
-                                                        title="Delete Backup File"
-                                                        aria-label="Delete <?= htmlspecialchars($backup['filename']) ?>"
-                                                        onclick="confirmDeleteBackup('<?= htmlspecialchars(addslashes($backup['filename'])) ?>')">
+                                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    title="Delete Backup File"
+                                                    aria-label="Delete <?= htmlspecialchars($backup['filename']) ?>"
+                                                    onclick="confirmDeleteBackup('<?= htmlspecialchars(addslashes($backup['filename'])) ?>')">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             </div>
@@ -1065,6 +1216,67 @@ include 'layout/header.php';
                             <?php endif; ?>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Mobile Phone Cards View (< 768px) -->
+                <div id="backupsMobileCards" class="d-block d-md-none mb-3">
+                    <?php if (empty($backupFiles)): ?>
+                        <div class="text-center py-5 text-muted border rounded-3 bg-light p-3">
+                            <i class="bi bi-database-exclamation fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                            <h6 class="fw-bold mb-1">No database backups found</h6>
+                            <p class="small mb-3">Click &ldquo;Create Backup Now&rdquo; to generate your first SiteWare
+                                database backup.</p>
+                            <button type="button" class="btn btn-sm btn-brand fw-bold px-3 shadow-sm w-100"
+                                onclick="handleCreateBackup()">
+                                <i class="bi bi-cloud-arrow-down-fill me-1"></i> Create Backup Now
+                            </button>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($backupFiles as $backup): ?>
+                            <div class="backup-mobile-card">
+                                <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                                    <div class="d-flex align-items-center gap-2 overflow-hidden" style="max-width: 70%;">
+                                        <i class="bi bi-file-earmark-code-fill text-primary fs-4 flex-shrink-0"></i>
+                                        <span
+                                            class="fw-bold text-dark font-monospace text-truncate small"><?= htmlspecialchars($backup['filename']) ?></span>
+                                    </div>
+                                    <span
+                                        class="badge rounded-pill <?= $backup['badge_class'] ?> px-2 py-1 fw-bold flex-shrink-0"
+                                        style="font-size: 0.68rem;">
+                                        <?= htmlspecialchars($backup['type_label']) ?>
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center justify-content-between text-muted small mb-3 border-bottom pb-2"
+                                    style="font-size: 0.78rem;">
+                                    <div><i class="bi bi-hdd me-1"></i> <?= htmlspecialchars($backup['filesize_formatted']) ?>
+                                    </div>
+                                    <div><i class="bi bi-clock me-1"></i>
+                                        <?= htmlspecialchars($backup['created_at_relative']) ?>
+                                    </div>
+                                </div>
+                                <div class="row g-2 backup-mobile-actions">
+                                    <div class="col-4">
+                                        <a href="process/module_backup.php?action=download_backup&file=<?= urlencode($backup['filename']) ?>"
+                                            class="btn btn-sm btn-outline-success w-100 fw-bold">
+                                            <i class="bi bi-download me-1"></i> Save
+                                        </a>
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="button" class="btn btn-sm btn-outline-warning text-dark w-100 fw-bold"
+                                            onclick="confirmServerRestore('<?= htmlspecialchars(addslashes($backup['filename'])) ?>')">
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
+                                        </button>
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="button" class="btn btn-sm btn-outline-danger w-100 fw-bold"
+                                            onclick="confirmDeleteBackup('<?= htmlspecialchars(addslashes($backup['filename'])) ?>')">
+                                            <i class="bi bi-trash me-1"></i> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
 
             </div>
@@ -1078,25 +1290,29 @@ include 'layout/header.php';
 <!-- ======================================================== -->
 
 <!-- SiteWare Restore Database Modal (Conforms to CIMS Modal AJAX Skill) -->
-<div class="modal fade" id="restoreBackupModal" tabindex="-1" aria-labelledby="restoreBackupModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+<div class="modal fade" id="restoreBackupModal" tabindex="-1" aria-labelledby="restoreBackupModalTitle"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title fw-bold" id="restoreBackupModalTitle">
                     <i class="bi bi-exclamation-triangle-fill me-2"></i>Restore SiteWare Database
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <form id="restoreUploadForm" enctype="multipart/form-data">
-                <div class="modal-body p-4">
+                <div class="modal-body p-3 p-md-4">
                     <input type="hidden" name="action" value="restore_backup">
                     <input type="hidden" name="source_type" value="upload">
 
-                    <div class="alert alert-warning border-0 shadow-sm d-flex align-items-start gap-2 mb-3" role="alert">
+                    <div class="alert alert-warning border-0 shadow-sm d-flex align-items-start gap-2 mb-3"
+                        role="alert">
                         <i class="bi bi-shield-exclamation fs-4 flex-shrink-0 text-danger"></i>
                         <div class="small">
                             <strong class="d-block text-danger">High Impact Operation:</strong>
-                            Restoring will overwrite current database records with the selected backup file. An automated pre-restore safety snapshot will be taken immediately before restoring.
+                            Restoring will overwrite current database records with the selected backup file. An
+                            automated pre-restore safety snapshot will be taken immediately before restoring.
                         </div>
                     </div>
 
@@ -1104,12 +1320,8 @@ include 'layout/header.php';
                         <label for="restoreBackupFileInput" class="form-label fw-bold text-dark">
                             Select SiteWare SQL Backup File <span class="text-danger">*</span>
                         </label>
-                        <input type="file" 
-                               class="form-control form-control-lg" 
-                               id="restoreBackupFileInput" 
-                               name="backup_file" 
-                               accept=".sql" 
-                               required>
+                        <input type="file" class="form-control form-control-lg" id="restoreBackupFileInput"
+                            name="backup_file" accept=".sql" required>
                         <div class="form-text small text-muted">
                             Only valid <code>.sql</code> files generated by SiteWare or MySQL (max 100MB) are accepted.
                         </div>
@@ -1118,15 +1330,20 @@ include 'layout/header.php';
                     <div class="p-3 border rounded-3 bg-light mb-2">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="restoreSafetyCheckbox" required>
-                            <label class="form-check-label small fw-semibold text-dark user-select-none" for="restoreSafetyCheckbox">
-                                I confirm that I want to restore this backup. I understand that all existing tables will be synchronized to the state in the backup file.
+                            <label class="form-check-label small fw-semibold text-dark user-select-none"
+                                for="restoreSafetyCheckbox">
+                                I confirm that I want to restore this backup. I understand that all existing tables will
+                                be synchronized to the state in the backup file.
                             </label>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer bg-light d-flex justify-content-between">
-                    <button type="button" class="btn btn-secondary fw-bold px-3" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger fw-bold px-4" id="btnSubmitRestoreUpload">
+                <div
+                    class="modal-footer bg-light d-flex flex-column-reverse flex-sm-row justify-content-sm-between gap-2">
+                    <button type="button" class="btn btn-secondary fw-bold px-3 w-100 w-sm-auto"
+                        data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger fw-bold px-4 w-100 w-sm-auto"
+                        id="btnSubmitRestoreUpload">
                         <i class="bi bi-arrow-counterclockwise me-1"></i> Restore Database
                     </button>
                 </div>
@@ -1234,7 +1451,8 @@ include 'layout/header.php';
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header text-white" style="background-color: var(--gb-dark, #1e293b);">
                 <div class="d-flex align-items-center gap-2">
-                    <div class="rounded-circle bg-primary text-white p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <div class="rounded-circle bg-primary text-white p-2 d-flex align-items-center justify-content-center"
+                        style="width: 40px; height: 40px;">
                         <i class="bi bi-building fs-5"></i>
                     </div>
                     <div>
@@ -1247,7 +1465,8 @@ include 'layout/header.php';
             <div class="modal-body p-4 bg-light">
                 <!-- Loading State -->
                 <div id="projDetailsLoading" class="text-center py-5">
-                    <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
+                    <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+                    </div>
                     <div class="fw-bold text-muted">Loading project materials and transaction records...</div>
                 </div>
 
@@ -1259,8 +1478,10 @@ include 'layout/header.php';
                             <div class="row align-items-center g-3">
                                 <div class="col-12 col-md-8">
                                     <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                                        <span class="badge bg-dark font-monospace px-3 py-2 fs-6" id="projDetailsCode">PRJ-000</span>
-                                        <span class="badge rounded-pill px-3 py-2 fs-6" id="projDetailsStatus">Active</span>
+                                        <span class="badge bg-dark font-monospace px-3 py-2 fs-6"
+                                            id="projDetailsCode">PRJ-000</span>
+                                        <span class="badge rounded-pill px-3 py-2 fs-6"
+                                            id="projDetailsStatus">Active</span>
                                     </div>
                                     <h4 class="fw-bold text-dark mb-1" id="projDetailsName">Project Name</h4>
                                     <p class="text-muted small mb-1" id="projDetailsAddress">
@@ -1272,19 +1493,22 @@ include 'layout/header.php';
                                     <div class="row g-2 text-center">
                                         <div class="col-4">
                                             <div class="p-2 border rounded bg-light">
-                                                <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Requisitions</small>
+                                                <small class="text-muted d-block fw-bold text-uppercase"
+                                                    style="font-size: 0.7rem;">Requisitions</small>
                                                 <span class="fw-bold fs-5 text-primary" id="projStatRs">0</span>
                                             </div>
                                         </div>
                                         <div class="col-4">
                                             <div class="p-2 border rounded bg-light">
-                                                <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Withdrawals</small>
+                                                <small class="text-muted d-block fw-bold text-uppercase"
+                                                    style="font-size: 0.7rem;">Withdrawals</small>
                                                 <span class="fw-bold fs-5 text-success" id="projStatWs">0</span>
                                             </div>
                                         </div>
                                         <div class="col-4">
                                             <div class="p-2 border rounded bg-light">
-                                                <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Materials</small>
+                                                <small class="text-muted d-block fw-bold text-uppercase"
+                                                    style="font-size: 0.7rem;">Materials</small>
                                                 <span class="fw-bold fs-5 text-warning" id="projStatMaterials">0</span>
                                             </div>
                                         </div>
@@ -1297,17 +1521,22 @@ include 'layout/header.php';
                     <!-- Navigation Tabs -->
                     <ul class="nav nav-pills mb-3 gap-2" id="projDetailsTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active fw-bold px-3 py-2 shadow-sm" id="proj-tab-rs" data-bs-toggle="pill" data-bs-target="#proj-pane-rs" type="button" role="tab">
-                                <i class="bi bi-file-earmark-text me-1"></i>Material Requisitions (<span id="projTabRsCount">0</span>)
+                            <button class="nav-link active fw-bold px-3 py-2 shadow-sm" id="proj-tab-rs"
+                                data-bs-toggle="pill" data-bs-target="#proj-pane-rs" type="button" role="tab">
+                                <i class="bi bi-file-earmark-text me-1"></i>Material Requisitions (<span
+                                    id="projTabRsCount">0</span>)
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link fw-bold px-3 py-2 shadow-sm" id="proj-tab-ws" data-bs-toggle="pill" data-bs-target="#proj-pane-ws" type="button" role="tab">
-                                <i class="bi bi-box-arrow-right me-1"></i>Material Withdrawals (<span id="projTabWsCount">0</span>)
+                            <button class="nav-link fw-bold px-3 py-2 shadow-sm" id="proj-tab-ws" data-bs-toggle="pill"
+                                data-bs-target="#proj-pane-ws" type="button" role="tab">
+                                <i class="bi bi-box-arrow-right me-1"></i>Material Withdrawals (<span
+                                    id="projTabWsCount">0</span>)
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link fw-bold px-3 py-2 shadow-sm" id="proj-tab-summary" data-bs-toggle="pill" data-bs-target="#proj-pane-summary" type="button" role="tab">
+                            <button class="nav-link fw-bold px-3 py-2 shadow-sm" id="proj-tab-summary"
+                                data-bs-toggle="pill" data-bs-target="#proj-pane-summary" type="button" role="tab">
                                 <i class="bi bi-bar-chart-fill me-1"></i>Consumption Summary
                             </button>
                         </li>
@@ -1365,14 +1594,19 @@ include 'layout/header.php';
                         <div class="tab-pane fade" id="proj-pane-summary" role="tabpanel">
                             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                                 <div>
-                                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-bar-chart-fill me-1 text-primary"></i>Total Materials Delivered to Site</h6>
-                                    <small class="text-muted">Aggregated summary of all verified jobsite dispatches</small>
+                                    <h6 class="fw-bold text-dark mb-0"><i
+                                            class="bi bi-bar-chart-fill me-1 text-primary"></i>Total Materials Delivered
+                                        to Site</h6>
+                                    <small class="text-muted">Aggregated summary of all verified jobsite
+                                        dispatches</small>
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-sm btn-outline-success fw-bold shadow-sm" onclick="exportProjectConsumptionCSV()">
+                                    <button type="button" class="btn btn-sm btn-outline-success fw-bold shadow-sm"
+                                        onclick="exportProjectConsumptionCSV()">
                                         <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="printProjectConsumptionReport()">
+                                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm"
+                                        onclick="printProjectConsumptionReport()">
                                         <i class="bi bi-printer me-1"></i>Print Report
                                     </button>
                                 </div>
@@ -1410,15 +1644,18 @@ include 'layout/header.php';
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header text-white" style="background-color: var(--gb-dark, #1e293b);">
-                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-text me-2 text-warning"></i>Requisition Document Details</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-text me-2 text-warning"></i>Requisition
+                    Document Details</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body bg-light p-4">
-                <div class="d-flex justify-content-between align-items-start mb-4 border-bottom pb-3 bg-white p-3 rounded shadow-sm">
+                <div
+                    class="d-flex justify-content-between align-items-start mb-4 border-bottom pb-3 bg-white p-3 rounded shadow-sm">
                     <div>
                         <h4 class="fw-bold text-primary mb-1 d-flex align-items-center gap-2 flex-wrap">
                             <span id="projRsDocNo">RS-0000</span>
-                            <span id="projRsDocStatus" class="badge shadow-sm" style="font-size: 0.75rem;">Pending Approval</span>
+                            <span id="projRsDocStatus" class="badge shadow-sm" style="font-size: 0.75rem;">Pending
+                                Approval</span>
                         </h4>
                         <div class="text-muted fw-bold text-uppercase small" id="projRsDocProject">Project Name</div>
                         <div class="mt-2 text-muted small">
@@ -1430,8 +1667,10 @@ include 'layout/header.php';
 
                     <!-- QR Code Container -->
                     <div id="projRsDocQrContainer" class="text-center d-none">
-                        <img id="projRsDocQrCode" src="" alt="RS QR Code" class="border p-1 bg-white shadow-sm" style="width: 90px; height: 90px; border-radius: 6px;">
-                        <small class="d-block text-muted mt-1 fw-bold" style="font-size: 0.65rem;">SCAN AT WAREHOUSE</small>
+                        <img id="projRsDocQrCode" src="" alt="RS QR Code" class="border p-1 bg-white shadow-sm"
+                            style="width: 90px; height: 90px; border-radius: 6px;">
+                        <small class="d-block text-muted mt-1 fw-bold" style="font-size: 0.65rem;">SCAN AT
+                            WAREHOUSE</small>
                     </div>
                 </div>
 
@@ -1452,14 +1691,16 @@ include 'layout/header.php';
 
                 <div>
                     <h6 class="fw-bold mb-2 text-dark small text-uppercase">Remarks / Purpose:</h6>
-                    <p class="text-muted small border p-3 bg-white rounded shadow-sm mb-0" id="projRsDocRemarks" style="min-height: 50px;">No remarks provided.</p>
+                    <p class="text-muted small border p-3 bg-white rounded shadow-sm mb-0" id="projRsDocRemarks"
+                        style="min-height: 50px;">No remarks provided.</p>
                 </div>
             </div>
             <div class="modal-footer d-flex justify-content-between bg-white border-top-0">
                 <a href="#" id="projRsDocFullPageLink" target="_blank" class="btn btn-outline-primary fw-bold">
                     <i class="bi bi-box-arrow-up-right me-1"></i> Open in Requisitions Tab
                 </a>
-                <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Back to Project</button>
+                <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Back to
+                    Project</button>
             </div>
         </div>
     </div>
@@ -1470,11 +1711,13 @@ include 'layout/header.php';
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header text-white" style="background-color: var(--gb-dark, #1e293b);">
-                <h5 class="modal-title fw-bold"><i class="bi bi-box-arrow-right me-2 text-success"></i>Material Withdrawal Slip</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-box-arrow-right me-2 text-success"></i>Material
+                    Withdrawal Slip</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body bg-light p-4">
-                <div class="d-flex justify-content-between align-items-start mb-4 border-bottom pb-3 bg-white p-3 rounded shadow-sm">
+                <div
+                    class="d-flex justify-content-between align-items-start mb-4 border-bottom pb-3 bg-white p-3 rounded shadow-sm">
                     <div>
                         <h4 class="fw-bold text-success mb-1" id="projWdDocNo">WD-0000</h4>
                         <div class="text-muted fw-bold text-uppercase small" id="projWdDocProject">Project Name</div>
@@ -1502,20 +1745,23 @@ include 'layout/header.php';
 
                 <!-- Proof & Signature Section -->
                 <div class="card border-0 shadow-sm mb-3 bg-white" id="projWdDocProofCard">
-                    <div class="card-header bg-light fw-bold text-muted small text-uppercase">Verification & Release Proof</div>
+                    <div class="card-header bg-light fw-bold text-muted small text-uppercase">Verification & Release
+                        Proof</div>
                     <div class="card-body p-3">
                         <div class="row g-3">
                             <div class="col-md-6" id="projWdDocSigWrapper">
                                 <small class="text-muted fw-bold d-block mb-1">Receiver Signature:</small>
                                 <div id="projWdDocSigContent" class="p-2 border rounded bg-light text-center">
-                                    <img id="projWdDocSigImg" src="" class="img-fluid rounded" style="max-height: 90px; background-color: #fff;">
+                                    <img id="projWdDocSigImg" src="" class="img-fluid rounded"
+                                        style="max-height: 90px; background-color: #fff;">
                                 </div>
                             </div>
                             <div class="col-md-6" id="projWdDocPhotoWrapper">
                                 <small class="text-muted fw-bold d-block mb-1">Delivery / Handover Photo:</small>
                                 <div id="projWdDocPhotoContent" class="p-2 border rounded bg-light text-center">
                                     <a id="projWdDocPhotoLink" href="#" target="_blank">
-                                        <img id="projWdDocPhotoImg" src="" class="img-fluid border rounded shadow-sm" style="max-height: 90px; object-fit: cover;">
+                                        <img id="projWdDocPhotoImg" src="" class="img-fluid border rounded shadow-sm"
+                                            style="max-height: 90px; object-fit: cover;">
                                     </a>
                                 </div>
                             </div>
@@ -1525,14 +1771,16 @@ include 'layout/header.php';
 
                 <div>
                     <h6 class="fw-bold mb-2 text-dark small text-uppercase">Release Remarks:</h6>
-                    <p class="text-muted small border p-3 bg-white rounded shadow-sm mb-0" id="projWdDocRemarks">No remarks.</p>
+                    <p class="text-muted small border p-3 bg-white rounded shadow-sm mb-0" id="projWdDocRemarks">No
+                        remarks.</p>
                 </div>
             </div>
             <div class="modal-footer d-flex justify-content-between bg-white border-top-0">
                 <a href="#" id="projWdDocFullPageLink" target="_blank" class="btn btn-outline-success fw-bold">
                     <i class="bi bi-box-arrow-up-right me-1"></i> Open in Withdrawals Tab
                 </a>
-                <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Back to Project</button>
+                <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Back to
+                    Project</button>
             </div>
         </div>
     </div>
@@ -1631,6 +1879,30 @@ include 'layout/header.php';
         return text.toString().replace(/[&<>"']/g, m => map[m]);
     }
 
+    // Copy Windows Task Scheduler CLI command
+    function copyCliCommand() {
+        const cmd = document.getElementById('cliTaskCmd');
+        if (cmd) {
+            navigator.clipboard.writeText(cmd.value).then(() => {
+                if (typeof Swal !== 'undefined') {
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 2000,
+                        timerProgressBar: true
+                    });
+                    Toast.fire({
+                        icon: 'success',
+                        title: 'CLI Task command copied!'
+                    });
+                } else {
+                    alert('CLI Task command copied to clipboard!');
+                }
+            });
+        }
+    }
+
     // Dynamic Client-Side Re-render of Backups Table & Status Badges
     function renderBackupsTable(backups) {
         const tbody = document.getElementById('backupsTableBody');
@@ -1713,6 +1985,62 @@ include 'layout/header.php';
         });
 
         tbody.innerHTML = html;
+
+        // Mobile Cards rendering (< 768px viewports)
+        const mobileContainer = document.getElementById('backupsMobileCards');
+        if (mobileContainer) {
+            if (!backups || backups.length === 0) {
+                mobileContainer.innerHTML = `
+                    <div class="text-center py-5 text-muted border rounded-3 bg-light p-3">
+                        <i class="bi bi-database-exclamation fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                        <h6 class="fw-bold mb-1">No database backups found</h6>
+                        <p class="small mb-3">Click &ldquo;Create Backup Now&rdquo; to generate your first SiteWare database backup.</p>
+                        <button type="button" class="btn btn-sm btn-brand fw-bold px-3 shadow-sm w-100" onclick="handleCreateBackup()">
+                            <i class="bi bi-cloud-arrow-down-fill me-1"></i> Create Backup Now
+                        </button>
+                    </div>`;
+            } else {
+                let mHtml = '';
+                backups.forEach(b => {
+                    const escapedName = escapeHtml(b.filename);
+                    const rawNameForJs = b.filename.replace(/'/g, "\\'");
+                    mHtml += `
+                        <div class="backup-mobile-card">
+                            <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                                <div class="d-flex align-items-center gap-2 overflow-hidden" style="max-width: 70%;">
+                                    <i class="bi bi-file-earmark-code-fill text-primary fs-4 flex-shrink-0"></i>
+                                    <span class="fw-bold text-dark font-monospace text-truncate small">${escapedName}</span>
+                                </div>
+                                <span class="badge rounded-pill ${b.badge_class} px-2 py-1 fw-bold flex-shrink-0" style="font-size: 0.68rem;">
+                                    ${escapeHtml(b.type_label)}
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between text-muted small mb-3 border-bottom pb-2" style="font-size: 0.78rem;">
+                                <div><i class="bi bi-hdd me-1"></i> ${escapeHtml(b.filesize_formatted)}</div>
+                                <div><i class="bi bi-clock me-1"></i> ${escapeHtml(b.created_at_relative)}</div>
+                            </div>
+                            <div class="row g-2 backup-mobile-actions">
+                                <div class="col-4">
+                                    <a href="process/module_backup.php?action=download_backup&file=${encodeURIComponent(b.filename)}" class="btn btn-sm btn-outline-success w-100 fw-bold">
+                                        <i class="bi bi-download me-1"></i> Save
+                                    </a>
+                                </div>
+                                <div class="col-4">
+                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark w-100 fw-bold" onclick="confirmServerRestore('${rawNameForJs}')">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
+                                    </button>
+                                </div>
+                                <div class="col-4">
+                                    <button type="button" class="btn btn-sm btn-outline-danger w-100 fw-bold" onclick="confirmDeleteBackup('${rawNameForJs}')">
+                                        <i class="bi bi-trash me-1"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                mobileContainer.innerHTML = mHtml;
+            }
+        }
     }
 
     // Refresh backups list asynchronously
