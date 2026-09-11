@@ -72,7 +72,7 @@ $pos = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate Stats
 $totalPO = count($pos);
-$pendingDelivery = count(array_filter($pos, fn($p) => in_array($p['status'], ['Generated', 'Viber Order Sent', 'Pending Delivery', 'Partially Delivered', 'Partially Received'])));
+$pendingDelivery = count(array_filter($pos, fn($p) => in_array($p['status'], ['Generated', 'Viber Order Sent', 'Out for Delivery', 'Pending Delivery', 'Partially Delivered', 'Partially Received'])));
 $delayedPO = count(array_filter($pos, fn($p) => strpos($p['status'], 'Delayed') !== false));
 
 // Fetch suppliers, officers, and projects list for filter dropdowns
@@ -557,6 +557,7 @@ include 'layout/header.php';
                                 <option value="all">All Statuses</option>
                                 <option value="Generated">Generated / Draft</option>
                                 <option value="Viber Order Sent">Viber Order Sent</option>
+                                <option value="Out for Delivery">🚚 Out for Delivery</option>
                                 <option value="Pending Delivery">Pending Delivery</option>
                                 <option value="Partially Delivered">Partially Delivered</option>
                                 <option value="Delivered">Delivered (Complete)</option>
@@ -604,13 +605,13 @@ include 'layout/header.php';
             <table class="table table-hover align-middle mb-0 text-nowrap" id="poTable">
                 <thead class="table-dark">
                     <tr>
-                        <th class="py-3">PO Number</th>
+                        <th class="py-3" style="min-width: 140px;">PO Number</th>
                         <th class="py-3">Date & Time Created</th>
                         <th class="py-3">Linked RS / Project</th>
                         <th class="py-3">Supplier</th>
-                        <th class="py-3">Status</th>
+                        <th class="py-3 text-center">Status</th>
                         <th class="py-3">Warehouse ETA</th>
-                        <th class="text-center py-3">Logistics Actions</th>
+                        <th class="text-center py-3" style="width: 180px; min-width: 170px;">Logistics Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -629,6 +630,8 @@ include 'layout/header.php';
                                 $statusClass = 'bg-info text-dark';
                             if ($displayStatus === 'Viber Order Sent')
                                 $statusClass = 'bg-viber text-white';
+                            if ($displayStatus === 'Out for Delivery')
+                                $statusClass = 'bg-primary text-white shadow-sm';
                             if ($displayStatus === 'Pending Delivery')
                                 $statusClass = 'bg-warning text-dark';
                             if (strpos($displayStatus, 'Delayed') !== false)
@@ -738,6 +741,9 @@ include 'layout/header.php';
                                 <td data-label="Status">
                                     <span class="badge <?= $statusClass ?> px-3 py-2 shadow-sm text-uppercase"
                                         id="status_<?= $po['id'] ?>">
+                                        <?php if ($displayStatus === 'Out for Delivery'): ?>
+                                            <i class="bi bi-truck me-1"></i>
+                                        <?php endif; ?>
                                         <?= htmlspecialchars($displayStatus) ?>
                                     </span>
                                     <?php if ($po['status'] === 'Delayed (Weather)'): ?>
@@ -770,135 +776,173 @@ include 'layout/header.php';
                                     $receiptFile = !empty($po['proof_of_receipt']) ? basename($po['proof_of_receipt']) : '';
                                     $secureReceiptUrl = $receiptFile ? ('secure-image?type=receipts&file=' . urlencode($receiptFile)) : '';
                                     $canManageLogistics = in_array($role, ['admin', 'purchasing']) && !in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)', 'Cancelled']);
+                                    $canReceive = in_array($role, ['admin', 'warehouse', 'purchasing']) && !in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)', 'Cancelled']);
                                     ?>
 
-                                    <?php if (in_array($role, ['admin', 'warehouse', 'purchasing']) && !in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)', 'Cancelled'])): ?>
-                                        <!-- RECEIVE ORDER (STOCK IN) -->
-                                        <button type="button" class="btn btn-sm btn-success fw-bold shadow-sm me-1"
-                                            onclick="openReceiveModal(<?= $po['id'] ?>, '<?= $po['po_no'] ?>')">
-                                            <i class="bi bi-box-arrow-in-down"></i> <span class="ms-1">Receive</span>
-                                        </button>
-                                    <?php endif; ?>
+                                    <div class="d-inline-flex align-items-center justify-content-center gap-1">
+                                        <!-- 1. PRIMARY OPERATIONAL ACTION BUTTON (Dynamic by Lifecycle) -->
+                                        <?php if ($canReceive && in_array($po['status'], ['Generated', 'Viber Order Sent'])): ?>
+                                            <!-- Out for Delivery is the next milestone -->
+                                            <button type="button" class="btn btn-sm btn-primary fw-bold shadow-sm primary-action-btn-<?= $po['id'] ?>"
+                                                style="min-width: 110px;"
+                                                title="Mark Order as Out for Delivery (In Transit)"
+                                                onclick="markPoOutForDelivery(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>')">
+                                                <i class="bi bi-truck"></i> <span class="ms-1">Out for Delivery</span>
+                                            </button>
+                                        <?php elseif ($canReceive && in_array($po['status'], ['Out for Delivery', 'Pending Delivery'])): ?>
+                                            <!-- En Route / Arrival: Receive is the primary milestone -->
+                                            <button type="button" class="btn btn-sm btn-success fw-bold shadow-sm primary-action-btn-<?= $po['id'] ?>"
+                                                style="min-width: 110px;"
+                                                title="Receive Order & Ingest Inventory"
+                                                onclick="openReceiveModal(<?= $po['id'] ?>, '<?= $po['po_no'] ?>')">
+                                                <i class="bi bi-box-arrow-in-down"></i> <span class="ms-1">Receive</span>
+                                            </button>
+                                        <?php elseif (in_array($role, ['admin', 'management', 'purchasing', 'warehouse']) && in_array($po['status'], ['Delivered (Discrepancy)', 'Partially Delivered', 'Partially Received'])):
+                                            $isPartial = in_array($po['status'], ['Partially Delivered', 'Partially Received']);
+                                            $btnClass = $isPartial ? 'btn-outline-warning text-dark' : 'btn-danger';
+                                            $btnIcon = $isPartial ? 'bi-clock-history' : 'bi-search';
+                                            $btnText = $isPartial ? 'Delivery Log' : 'View Issue';
+                                            ?>
+                                            <button type="button" class="btn btn-sm <?= $btnClass ?> fw-bold shadow-sm"
+                                                style="min-width: 110px;"
+                                                title="View Delivery History & Discrepancy Remarks" 
+                                                data-pono="<?= htmlspecialchars($po['po_no']) ?>"
+                                                data-poid="<?= (int)$po['id'] ?>"
+                                                data-status="<?= htmlspecialchars($po['status']) ?>"
+                                                data-remarks="<?= htmlspecialchars($po['delay_remarks'] ?? 'No delivery remarks logged yet.') ?>"
+                                                data-proof="<?= htmlspecialchars($secureReceiptUrl) ?>" 
+                                                onclick="viewDiscrepancy(this)">
+                                                <i class="bi <?= $btnIcon ?>"></i> <span class="ms-1"><?= $btnText ?></span>
+                                            </button>
+                                        <?php elseif ($po['status'] === 'Cancelled'): ?>
+                                            <button type="button" class="btn btn-sm btn-outline-dark fw-bold shadow-sm"
+                                                style="min-width: 110px;"
+                                                title="View Cancellation Audit Log" 
+                                                data-pono="<?= htmlspecialchars($po['po_no']) ?>"
+                                                data-poid="<?= (int)$po['id'] ?>"
+                                                data-status="<?= htmlspecialchars($po['status']) ?>"
+                                                data-remarks="<?= htmlspecialchars($po['delay_remarks'] ?? 'No cancellation remarks recorded.') ?>"
+                                                data-proof="" 
+                                                onclick="viewDiscrepancy(this)">
+                                                <i class="bi bi-file-earmark-medical"></i> <span class="ms-1">Audit Log</span>
+                                            </button>
+                                        <?php else: ?>
+                                            <!-- Standard Inspection: View Details -->
+                                            <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm"
+                                                style="min-width: 110px;"
+                                                title="View Purchase Order Details" aria-label="View Details for <?= htmlspecialchars($po['po_no']) ?>"
+                                                onclick="openPoPrintModal(<?= $po['id'] ?>)">
+                                                <i class="bi bi-eye"></i> <span class="ms-1">View Details</span>
+                                            </button>
+                                        <?php endif; ?>
 
-                                    <?php if (in_array($role, ['admin', 'management', 'purchasing', 'warehouse']) && in_array($po['status'], ['Delivered (Discrepancy)', 'Partially Delivered', 'Partially Received'])):
-                                        $isPartial = in_array($po['status'], ['Partially Delivered', 'Partially Received']);
-                                        $btnClass = $isPartial ? 'btn-outline-warning text-dark' : 'btn-danger';
-                                        $btnIcon = $isPartial ? 'bi-clock-history' : 'bi-search';
-                                        $btnText = $isPartial ? 'Delivery Log' : 'View Issue';
-                                        ?>
-                                        <!-- VIEW DISCREPANCY / DELIVERY LOG BUTTON -->
-                                        <button type="button" class="btn btn-sm <?= $btnClass ?> fw-bold shadow-sm me-1"
-                                            title="View Delivery History & Remarks" 
-                                            data-pono="<?= htmlspecialchars($po['po_no']) ?>"
-                                            data-poid="<?= (int)$po['id'] ?>"
-                                            data-status="<?= htmlspecialchars($po['status']) ?>"
-                                            data-remarks="<?= htmlspecialchars($po['delay_remarks'] ?? 'No delivery remarks logged yet.') ?>"
-                                            data-proof="<?= htmlspecialchars($secureReceiptUrl) ?>" 
-                                            onclick="viewDiscrepancy(this)">
-                                            <i class="bi <?= $btnIcon ?>"></i> <span class="ms-1"><?= $btnText ?></span>
-                                        </button>
-                                    <?php endif; ?>
-
-                                    <?php if ($po['status'] === 'Cancelled'): ?>
-                                        <!-- VIEW CANCELLATION AUDIT LOG -->
-                                        <button type="button" class="btn btn-sm btn-outline-dark fw-bold shadow-sm me-1"
-                                            title="View Cancellation Audit Log" 
-                                            data-pono="<?= htmlspecialchars($po['po_no']) ?>"
-                                            data-poid="<?= (int)$po['id'] ?>"
-                                            data-status="<?= htmlspecialchars($po['status']) ?>"
-                                            data-remarks="<?= htmlspecialchars($po['delay_remarks'] ?? 'No cancellation remarks recorded.') ?>"
-                                            data-proof="" 
-                                            onclick="viewDiscrepancy(this)">
-                                            <i class="bi bi-file-earmark-medical"></i> <span class="ms-1">Audit Log</span>
-                                        </button>
-                                    <?php endif; ?>
-
-                                    <?php if (!empty($secureReceiptUrl) && in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)'])): ?>
-                                        <a href="<?= htmlspecialchars($secureReceiptUrl) ?>"
-                                            onclick="event.preventDefault(); window.openPhotoWindow('<?= htmlspecialchars($secureReceiptUrl) ?>');"
-                                            class="btn btn-sm btn-outline-info fw-bold shadow-sm me-1"
-                                            title="View Proof of Receipt">
-                                            <i class="bi bi-paperclip"></i> <span class="ms-1">Receipt</span>
-                                        </a>
-                                    <?php endif; ?>
-
-                                    <!-- VIEW DETAILS BUTTON -->
-                                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm me-1"
-                                        title="View Purchase Order Details" aria-label="View Details for <?= htmlspecialchars($po['po_no']) ?>"
-                                        onclick="openPoPrintModal(<?= $po['id'] ?>)">
-                                        <i class="bi bi-eye"></i> <span class="ms-1">View Details</span>
-                                    </button>
-
-                                    <!-- 3-DOTS MORE LOGISTICS ACTIONS DROPDOWN -->
-                                    <div class="dropdown d-inline-block">
-                                        <button type="button" 
-                                            class="btn btn-sm btn-outline-secondary fw-bold shadow-sm px-2"
-                                            data-bs-toggle="dropdown" 
-                                            aria-expanded="false"
-                                            title="More Actions">
-                                            <i class="bi bi-three-dots-vertical"></i>
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="font-size: 0.85rem; min-width: 205px; border-radius: 10px; z-index: 1060;">
-                                            <li class="dropdown-header text-uppercase text-muted fw-bold py-1 px-3" style="font-size: 0.68rem; letter-spacing: 0.5px;">
-                                                <i class="bi bi-gear me-1"></i> Order Actions
-                                            </li>
-                                            <li>
-                                                <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
-                                                    onclick="directPrintPo(<?= $po['id'] ?>)">
-                                                    <i class="bi bi-printer text-secondary fs-6" style="width: 18px;"></i>
-                                                    <span>Print PO Document</span>
-                                                </button>
-                                            </li>
-                                            <?php if ($canManageLogistics): ?>
+                                        <!-- 2. STANDARDIZED 3-DOTS MORE ACTIONS DROPDOWN -->
+                                        <div class="dropdown d-inline-block">
+                                            <button type="button" 
+                                                class="btn btn-sm btn-outline-secondary fw-bold shadow-sm px-2"
+                                                data-bs-toggle="dropdown" 
+                                                aria-expanded="false"
+                                                title="More Actions">
+                                                <i class="bi bi-three-dots-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="font-size: 0.85rem; min-width: 215px; border-radius: 10px; z-index: 1060;">
+                                                <li class="dropdown-header text-uppercase text-muted fw-bold py-1 px-3" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                                                    <i class="bi bi-gear me-1"></i> Order Actions
+                                                </li>
                                                 <li>
                                                     <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
-                                                        onclick="openViberPreviewModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', <?= (int) $po['supplier_id'] ?>, '<?= htmlspecialchars($po['contact_number'] ?? '', ENT_QUOTES) ?>')">
-                                                        <i class="fa-brands fa-viber fs-6" style="color: #7360f2; width: 18px;"></i>
-                                                        <span>Send via Viber</span>
+                                                        onclick="openPoPrintModal(<?= $po['id'] ?>)">
+                                                        <i class="bi bi-eye text-primary fs-6" style="width: 18px;"></i>
+                                                        <span>View PO Details</span>
                                                     </button>
                                                 </li>
                                                 <li>
                                                     <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
-                                                        onclick="openDelayModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', '<?= htmlspecialchars($po['expected_delivery_date'] ?? '', ENT_QUOTES) ?>')">
-                                                        <i class="bi bi-cloud-lightning-rain-fill text-warning fs-6" style="width: 18px;"></i>
-                                                        <span>Report Delay</span>
+                                                        onclick="directPrintPo(<?= $po['id'] ?>)">
+                                                        <i class="bi bi-printer text-secondary fs-6" style="width: 18px;"></i>
+                                                        <span>Print PO Manifest</span>
                                                     </button>
                                                 </li>
-                                            <?php endif; ?>
-                                            <?php if (!empty($secureReceiptUrl)): ?>
-                                                <li>
-                                                    <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="<?= htmlspecialchars($secureReceiptUrl) ?>"
-                                                        onclick="event.preventDefault(); window.openPhotoWindow('<?= htmlspecialchars($secureReceiptUrl) ?>');">
-                                                        <i class="bi bi-paperclip text-info fs-6" style="width: 18px;"></i>
-                                                        <span>View Receipt</span>
-                                                    </a>
-                                                </li>
-                                            <?php endif; ?>
-                                            <?php if (!empty($po['delay_remarks'])): ?>
-                                                <li>
-                                                    <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
-                                                        data-pono="<?= htmlspecialchars($po['po_no']) ?>"
-                                                        data-poid="<?= (int)$po['id'] ?>"
-                                                        data-status="<?= htmlspecialchars($po['status']) ?>"
-                                                        data-remarks="<?= htmlspecialchars($po['delay_remarks']) ?>"
-                                                        data-proof="<?= htmlspecialchars($secureReceiptUrl) ?>" 
-                                                        onclick="viewDiscrepancy(this)">
-                                                        <i class="bi bi-clock-history text-secondary fs-6" style="width: 18px;"></i>
-                                                        <span>Delivery & Issue Log</span>
-                                                    </button>
-                                                </li>
-                                            <?php endif; ?>
-                                            <?php if ($canManageLogistics): ?>
-                                                <li><hr class="dropdown-divider my-1"></li>
-                                                <li>
-                                                    <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 text-danger"
-                                                        onclick="openCancelPoModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', '<?= htmlspecialchars($po['company_name'] ?? '', ENT_QUOTES) ?>', '<?= htmlspecialchars($po['rs_no'] ?? '', ENT_QUOTES) ?>')">
-                                                        <i class="bi bi-slash-circle fs-6 text-danger" style="width: 18px;"></i>
-                                                        <span class="fw-semibold">Void / Cancel PO</span>
-                                                    </button>
-                                                </li>
-                                            <?php endif; ?>
-                                        </ul>
+
+                                                <?php if ($canReceive): ?>
+                                                    <li><hr class="dropdown-divider my-1"></li>
+                                                    <?php if (in_array($po['status'], ['Generated', 'Viber Order Sent'])): ?>
+                                                        <li>
+                                                            <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 text-success fw-semibold"
+                                                                onclick="openReceiveModal(<?= $po['id'] ?>, '<?= $po['po_no'] ?>')">
+                                                                <i class="bi bi-box-arrow-in-down fs-6" style="width: 18px;"></i>
+                                                                <span>Receive Order (Stock In)</span>
+                                                            </button>
+                                                        </li>
+                                                    <?php endif; ?>
+                                                    <?php if (in_array($po['status'], ['Generated', 'Viber Order Sent', 'Pending Delivery'])): ?>
+                                                        <li class="out-for-delivery-item-<?= $po['id'] ?>">
+                                                            <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 text-primary fw-semibold"
+                                                                onclick="markPoOutForDelivery(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>')">
+                                                                <i class="bi bi-truck fs-6" style="width: 18px;"></i>
+                                                                <span>Mark Out for Delivery</span>
+                                                            </button>
+                                                        </li>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
+
+                                                <?php if ($canManageLogistics): ?>
+                                                    <li>
+                                                        <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                                            onclick="openViberPreviewModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', <?= (int) $po['supplier_id'] ?>, '<?= htmlspecialchars($po['contact_number'] ?? '', ENT_QUOTES) ?>')">
+                                                            <i class="fa-brands fa-viber fs-6" style="color: #7360f2; width: 18px;"></i>
+                                                            <span>Send via Viber</span>
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                                            onclick="openDelayModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', '<?= htmlspecialchars($po['expected_delivery_date'] ?? '', ENT_QUOTES) ?>')">
+                                                            <i class="bi bi-cloud-lightning-rain-fill text-warning fs-6" style="width: 18px;"></i>
+                                                            <span>Report Delay / Weather</span>
+                                                        </button>
+                                                    </li>
+                                                <?php endif; ?>
+
+                                                <?php if (!empty($secureReceiptUrl) || !empty($po['delay_remarks']) || $canManageLogistics): ?>
+                                                    <li><hr class="dropdown-divider my-1"></li>
+                                                <?php endif; ?>
+
+                                                <?php if (!empty($secureReceiptUrl)): ?>
+                                                    <li>
+                                                        <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="<?= htmlspecialchars($secureReceiptUrl) ?>"
+                                                            onclick="event.preventDefault(); window.openPhotoWindow('<?= htmlspecialchars($secureReceiptUrl) ?>');">
+                                                            <i class="bi bi-paperclip text-info fs-6" style="width: 18px;"></i>
+                                                            <span>View Proof of Receipt</span>
+                                                        </a>
+                                                    </li>
+                                                <?php endif; ?>
+
+                                                <?php if (!empty($po['delay_remarks'])): ?>
+                                                    <li>
+                                                        <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                                            data-pono="<?= htmlspecialchars($po['po_no']) ?>"
+                                                            data-poid="<?= (int)$po['id'] ?>"
+                                                            data-status="<?= htmlspecialchars($po['status']) ?>"
+                                                            data-remarks="<?= htmlspecialchars($po['delay_remarks']) ?>"
+                                                            data-proof="<?= htmlspecialchars($secureReceiptUrl) ?>" 
+                                                            onclick="viewDiscrepancy(this)">
+                                                            <i class="bi bi-clock-history text-secondary fs-6" style="width: 18px;"></i>
+                                                            <span>Delivery & Issue Log</span>
+                                                        </button>
+                                                    </li>
+                                                <?php endif; ?>
+
+                                                <?php if ($canManageLogistics): ?>
+                                                    <li>
+                                                        <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 text-danger"
+                                                            onclick="openCancelPoModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', '<?= htmlspecialchars($po['company_name'] ?? '', ENT_QUOTES) ?>', '<?= htmlspecialchars($po['rs_no'] ?? '', ENT_QUOTES) ?>')">
+                                                            <i class="bi bi-slash-circle fs-6 text-danger" style="width: 18px;"></i>
+                                                            <span class="fw-semibold">Void / Cancel PO</span>
+                                                        </button>
+                                                    </li>
+                                                <?php endif; ?>
+                                            </ul>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -1828,7 +1872,19 @@ include 'layout/header.php';
                 if (docStatus === 'Viber Order Sent' || docStatus === 'SMS Sent') {
                     docStatus = 'Order Sent';
                 }
-                document.getElementById('printPoStatus').innerText = docStatus;
+                const poStatusBadge = document.getElementById('printPoStatus');
+                if (poStatusBadge) {
+                    poStatusBadge.innerText = docStatus;
+                    if (docStatus === 'Out for Delivery') {
+                        poStatusBadge.className = 'badge bg-primary px-2 py-0.5 text-uppercase po-doc-status';
+                    } else if (docStatus === 'Delivered') {
+                        poStatusBadge.className = 'badge bg-success px-2 py-0.5 text-uppercase po-doc-status';
+                    } else if (docStatus === 'Order Sent') {
+                        poStatusBadge.className = 'badge bg-secondary px-2 py-0.5 text-uppercase po-doc-status';
+                    } else {
+                        poStatusBadge.className = 'badge bg-dark px-2 py-0.5 text-uppercase po-doc-status';
+                    }
+                }
                 document.getElementById('printPoDate').innerText = data.formatted_date;
                 document.getElementById('printRsNo').innerText = po.rs_no || 'N/A';
                 document.getElementById('printProjectName').innerText = po.project_name || 'Warehouse Restock';
@@ -2214,7 +2270,7 @@ include 'layout/header.php';
             // KPI Stat Tile Filter
             let matchesTileStatus = true;
             if (currentPoTileFilter === 'pending') {
-                matchesTileStatus = ['Generated', 'Viber Order Sent', 'Pending Delivery', 'Partially Delivered', 'Partially Received'].includes(rowStatus);
+                matchesTileStatus = ['Generated', 'Viber Order Sent', 'Out for Delivery', 'Pending Delivery', 'Partially Delivered', 'Partially Received'].includes(rowStatus);
             } else if (currentPoTileFilter === 'delayed') {
                 matchesTileStatus = rowStatus.includes('Delayed');
             }
@@ -2497,6 +2553,102 @@ include 'layout/header.php';
         alert("PO details copied to clipboard!\nOpening Viber Desktop for " + cleanPhone + "...\n\nPress Ctrl + V in Viber to paste your order.");
 
         window.location.href = "viber://chat?number=" + encodeURIComponent(cleanPhone);
+    };
+
+    // ==========================================
+    // MARK PURCHASE ORDER OUT FOR DELIVERY
+    // ==========================================
+    window.markPoOutForDelivery = async function (poId, poNo) {
+        let deliveryNotes = '';
+
+        if (typeof Swal !== 'undefined') {
+            const { value: notes, isConfirmed } = await Swal.fire({
+                title: 'Mark Out for Delivery?',
+                html: `Confirm that items for <strong>${poNo}</strong> have departed the supplier and are en route to the warehouse/jobsite.`,
+                icon: 'question',
+                input: 'text',
+                inputPlaceholder: 'Courier / Driver / Vehicle Plate # (Optional)',
+                showCancelButton: true,
+                confirmButtonColor: '#0d6efd',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: '<i class="bi bi-truck me-1"></i> Yes, Mark Out for Delivery',
+                cancelButtonText: 'Cancel'
+            });
+
+            if (!isConfirmed) return;
+            deliveryNotes = (notes || '').trim();
+        } else {
+            if (!confirm(`Mark Purchase Order ${poNo} as Out for Delivery?`)) return;
+            deliveryNotes = (prompt("Courier / Driver / Vehicle Plate # (Optional):") || '').trim();
+        }
+
+        const formData = new FormData();
+        formData.append('action', 'mark_po_out_for_delivery');
+        formData.append('po_id', poId);
+        formData.append('delivery_notes', deliveryNotes);
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const headers = {};
+        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+        try {
+            const resp = await fetch('process/process.php', { method: 'POST', body: formData, headers: headers });
+            const data = await resp.json();
+
+            if (data.status === 'success') {
+                // Update status badge dynamically in table
+                const statusBadge = document.getElementById('status_' + poId);
+                if (statusBadge) {
+                    statusBadge.className = 'badge bg-primary text-white px-3 py-2 shadow-sm text-uppercase';
+                    statusBadge.innerHTML = '<i class="bi bi-truck me-1"></i> Out for Delivery';
+                }
+
+                // Update data-status attribute on the parent table row for dynamic filtering
+                const row = document.querySelector(`.po-row:has(#status_${poId})`);
+                if (row) {
+                    row.setAttribute('data-status', 'Out for Delivery');
+                }
+
+                // Morph primary action button to Receive
+                const primaryBtn = document.querySelector(`.primary-action-btn-${poId}`);
+                if (primaryBtn) {
+                    primaryBtn.className = 'btn btn-sm btn-success fw-bold shadow-sm primary-action-btn-' + poId;
+                    primaryBtn.title = 'Receive Order & Ingest Inventory';
+                    primaryBtn.setAttribute('onclick', `openReceiveModal(${poId}, '${poNo}')`);
+                    primaryBtn.innerHTML = '<i class="bi bi-box-arrow-in-down"></i> <span class="ms-1">Receive</span>';
+                }
+
+                // Remove Out for Delivery action items from dropdown
+                document.querySelectorAll(`.out-for-delivery-item-${poId}`).forEach(el => {
+                    el.remove();
+                });
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Shipment En Route',
+                        text: data.message || `PO ${poNo} is now Out for Delivery!`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    alert(data.message || `PO ${poNo} is now Out for Delivery!`);
+                }
+            } else {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({ icon: 'error', title: 'Update Failed', text: data.message || 'Could not update status.' });
+                } else {
+                    alert(data.message || 'Could not update status.');
+                }
+            }
+        } catch (err) {
+            console.error('Error marking PO out for delivery:', err);
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to communicate with server.' });
+            } else {
+                alert('Network error: Could not reach server.');
+            }
+        }
     };
 
     // ==========================================
