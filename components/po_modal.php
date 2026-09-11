@@ -623,19 +623,51 @@ $approvedRS = $pdo->query("
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-dark text-white d-print-none">
-                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-text-fill me-2"
-                        style="color: var(--gb-yellow);"></i>Purchase Order Details & Virtual Document</h5>
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <h5 class="modal-title fw-bold mb-0"><i class="bi bi-file-earmark-text-fill me-2"
+                            style="color: var(--gb-yellow);"></i>Purchase Order Details & Fulfillment</h5>
+                    <span class="badge bg-primary font-monospace px-2 py-1" id="poModalHeaderPoNo">PO-000000</span>
+                </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 
             <div class="modal-body p-2 p-sm-3 p-md-4 bg-light" id="poPrintDocumentBody">
                 <div class="text-center text-muted py-5" id="poPrintLoadingSpinner">
-                    <div class="spinner-border text-primary me-2"></div> Loading Purchase Order Document...
+                    <div class="spinner-border text-primary me-2"></div> Loading Purchase Order Details...
                 </div>
 
-                <!-- Printable Virtual Paper Container (Adaptive Desktop & Half-A4 Mobile Layout) -->
-                <div class="bg-white border p-2.5 p-sm-3 p-md-4 rounded-3 shadow-sm d-none po-half-a4-paper"
-                    id="poPrintPaper" style="margin: 0 auto;">
+                <div id="poPrintModalContent" class="d-none">
+                    <!-- Navigation Tab Bar (Pills: Document, Attached Receipt, Timeline) -->
+                    <ul class="nav nav-pills nav-fill bg-white border rounded-3 p-1 mb-3 shadow-xs d-print-none" id="poDetailsTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-bold py-2 d-flex align-items-center justify-content-center gap-1.5" id="poTabDocBtn" data-bs-toggle="tab" data-bs-target="#poTabDocPane" type="button" role="tab" aria-controls="poTabDocPane" aria-selected="true">
+                                <i class="bi bi-file-earmark-text"></i>
+                                <span>PO Document</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold py-2 d-flex align-items-center justify-content-center gap-1.5 position-relative" id="poTabReceiptBtn" data-bs-toggle="tab" data-bs-target="#poTabReceiptPane" type="button" role="tab" aria-controls="poTabReceiptPane" aria-selected="false">
+                                <i class="bi bi-receipt"></i>
+                                <span>Attached Receipt</span>
+                                <span id="poReceiptTabBadge" class="badge rounded-pill bg-secondary ms-1" style="font-size: 0.65rem;">None</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold py-2 d-flex align-items-center justify-content-center gap-1.5" id="poTabTimelineBtn" data-bs-toggle="tab" data-bs-target="#poTabTimelinePane" type="button" role="tab" aria-controls="poTabTimelinePane" aria-selected="false">
+                                <i class="bi bi-clock-history"></i>
+                                <span>Fulfillment Timeline</span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="poDetailsTabContent">
+                        <!-- ==========================================
+                             TAB 1: OFFICIAL PO DOCUMENT & MANIFEST
+                        =========================================== -->
+                        <div class="tab-pane fade show active" id="poTabDocPane" role="tabpanel" aria-labelledby="poTabDocBtn">
+                            <!-- Printable Virtual Paper Container (Adaptive Desktop & Half-A4 Mobile Layout) -->
+                            <div class="bg-white border p-2.5 p-sm-3 p-md-4 rounded-3 shadow-sm po-half-a4-paper"
+                                id="poPrintPaper" style="margin: 0 auto;">
                     <!-- Letterhead Header -->
                     <div class="row align-items-center pb-2 mb-2 border-bottom border-2 border-dark">
                         <div class="col-7 col-sm-8">
@@ -811,14 +843,149 @@ $approvedRS = $pdo->query("
                                 style="height: 62px; width: 62px; object-fit: contain;">
                         </div>
                     </div>
-                </div>
-            </div>
+                            </div>
+                        </div><!-- /#poTabDocPane -->
+
+                        <!-- ==========================================
+                             TAB 2: ATTACHED DELIVERY RECEIPT
+                        =========================================== -->
+                        <div class="tab-pane fade" id="poTabReceiptPane" role="tabpanel" aria-labelledby="poTabReceiptBtn">
+                            <!-- State A: Receipt Is Attached -->
+                            <div id="poReceiptAttachedView" class="d-none">
+                                <div class="card border shadow-xs mb-3 bg-white">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 pb-2 mb-2 border-bottom">
+                                            <div>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 fw-bold" style="font-size: 0.75rem;">
+                                                        <i class="bi bi-shield-check me-1"></i>Official Delivery Receipt Attached
+                                                    </span>
+                                                    <span class="badge bg-light text-dark border font-monospace" id="poReceiptFileExtBadge">JPG</span>
+                                                </div>
+                                                <div class="text-muted small mt-1" id="poReceiptUploadMeta">
+                                                    <i class="bi bi-file-earmark-arrow-up me-1"></i>Document archived in secure storage
+                                                </div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2 w-100 w-sm-auto justify-content-end">
+                                                <a href="#" id="poReceiptExternalLink" target="_blank" class="btn btn-sm btn-outline-primary fw-bold">
+                                                    <i class="bi bi-box-arrow-up-right me-1"></i> Full Window
+                                                </a>
+                                                <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold" id="poReceiptReplaceBtn" onclick="triggerPoReceiptModal(true)">
+                                                    <i class="bi bi-arrow-repeat me-1"></i> Replace
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Preview Viewer Box (Responsive Image or PDF) -->
+                                        <div class="bg-light rounded border p-2 text-center position-relative d-flex align-items-center justify-content-center" style="min-height: 280px; max-height: 560px; overflow: auto;">
+                                            <!-- Image Preview Element -->
+                                            <img id="poReceiptImagePreview" src="" alt="Proof of Delivery Receipt" class="img-fluid rounded shadow-sm d-none mx-auto" style="max-height: 520px; object-fit: contain; cursor: zoom-in;" onclick="window.open(this.src, '_blank')" title="Click to open high-resolution document in new tab">
+                                            
+                                            <!-- PDF Viewer Wrap -->
+                                            <div id="poReceiptPdfWrap" class="ratio ratio-16x9 rounded w-100 d-none" style="min-height: 480px;">
+                                                <iframe id="poReceiptPdfFrame" src="" class="rounded border-0" style="width: 100%; height: 100%;"></iframe>
+                                            </div>
+                                        </div>
+
+                                        <!-- Receipt Reference / Invoicing Notes (if present) -->
+                                        <div id="poReceiptNotesBox" class="mt-3 p-2.5 bg-light rounded border d-none">
+                                            <h6 class="fw-bold text-dark text-uppercase mb-1" style="font-size: 0.72rem;">
+                                                <i class="bi bi-file-earmark-medical me-1 text-primary"></i> Receipt / Invoicing Reference & Notes:
+                                            </h6>
+                                            <p class="text-secondary small mb-0 font-monospace" id="poReceiptNotesText" style="white-space: pre-wrap;"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- State B: Receipt NOT Attached (Clean ISO-standard Empty State) -->
+                            <div id="poReceiptEmptyView" class="card border shadow-xs bg-white text-center py-5 px-3">
+                                <div class="card-body">
+                                    <div class="d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-circle mb-3" style="width: 68px; height: 68px;">
+                                        <i class="bi bi-receipt" style="font-size: 2.2rem;"></i>
+                                    </div>
+                                    <h5 class="fw-bold text-dark mb-1">No Delivery Receipt Document Attached</h5>
+                                    <p class="text-muted small mx-auto mb-3" style="max-width: 480px;">
+                                        The physical delivery receipt (DR), sales invoice, or delivery photo has not been uploaded for this purchase order yet.
+                                    </p>
+                                    <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
+                                        <button type="button" class="btn btn-primary fw-bold px-4 shadow-sm" onclick="triggerPoReceiptModal(false)">
+                                            <i class="bi bi-cloud-arrow-up me-2"></i> Attach Delivery Receipt Now
+                                        </button>
+                                    </div>
+                                    <div class="text-muted mt-3" style="font-size: 0.72rem;">
+                                        <i class="bi bi-shield-check me-1"></i>ISO 9001 Clause 8.5.2 & 7.5 requires documentation of physical material transfers.
+                                    </div>
+                                </div>
+                            </div>
+                        </div><!-- /#poTabReceiptPane -->
+
+                        <!-- ==========================================
+                             TAB 3: LOGISTICS & FULFILLMENT TIMELINE
+                        =========================================== -->
+                        <div class="tab-pane fade" id="poTabTimelinePane" role="tabpanel" aria-labelledby="poTabTimelineBtn">
+                            <!-- Order Specs Quick Summary -->
+                            <div class="card border shadow-xs mb-3 bg-white">
+                                <div class="card-body p-3">
+                                    <div class="row g-2 align-items-center text-center text-sm-start">
+                                        <div class="col-6 col-md-3">
+                                            <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.68rem;">Current Status</small>
+                                            <span id="poTimelineStatusBadge" class="badge bg-primary px-2 py-1 mt-0.5">Pending</span>
+                                        </div>
+                                        <div class="col-6 col-md-3">
+                                            <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.68rem;">Supplier</small>
+                                            <span id="poTimelineSupplier" class="fw-bold text-dark text-truncate d-block small mt-0.5">-</span>
+                                        </div>
+                                        <div class="col-6 col-md-3">
+                                            <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.68rem;">Requisition</small>
+                                            <span id="poTimelineRsNo" class="fw-bold text-primary text-truncate d-block small mt-0.5">-</span>
+                                        </div>
+                                        <div class="col-6 col-md-3">
+                                            <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.68rem;">Target ETA</small>
+                                            <span id="poTimelineEta" class="fw-bold text-danger text-truncate d-block small mt-0.5">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Vertical Milestone Steps -->
+                            <div class="card border shadow-xs mb-3 bg-white">
+                                <div class="card-body p-3 p-sm-4">
+                                    <h6 class="fw-bold text-dark text-uppercase mb-3" style="font-size: 0.78rem;">
+                                        <i class="bi bi-signpost-split me-1.5 text-primary"></i> Order Lifecycle & Audit Trail
+                                    </h6>
+                                    <div class="po-timeline" id="poTimelineContainer">
+                                        <!-- Dynamically populated via openPoPrintModal -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Discrepancy & Delay Alerts Log (if present) -->
+                            <div id="poTimelineAlertsSection" class="card border shadow-xs bg-white mb-2 d-none">
+                                <div class="card-header bg-warning-subtle text-warning-emphasis fw-bold py-2 px-3 d-flex align-items-center justify-content-between" style="font-size: 0.78rem;">
+                                    <span><i class="bi bi-exclamation-triangle-fill me-1.5"></i> Logistics Alerts & Discrepancy History</span>
+                                    <span class="badge bg-warning text-dark" id="poTimelineAlertCount">1</span>
+                                </div>
+                                <div class="card-body p-3" id="poTimelineAlertsBody" style="font-size: 0.78rem;">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                        </div><!-- /#poTabTimelinePane -->
+
+                    </div><!-- /#poDetailsTabContent -->
+                </div><!-- /#poPrintModalContent -->
+            </div><!-- /#poPrintDocumentBody -->
 
             <div class="modal-footer justify-content-between bg-white border-top-0 d-print-none">
                 <button type="button" class="btn btn-light text-muted fw-bold px-4"
                     data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary fw-bold px-4 shadow-sm" onclick="printPoDocument()"><i
-                        class="bi bi-printer me-2"></i> Print Purchase Order</button>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary fw-bold px-3 d-none" id="poModalAttachReceiptBtn" onclick="triggerPoReceiptModal()">
+                        <i class="bi bi-paperclip me-1"></i> Attach Receipt
+                    </button>
+                    <button type="button" class="btn btn-primary fw-bold px-4 shadow-sm" onclick="printPoDocument()"><i
+                            class="bi bi-printer me-2"></i> Print Purchase Order</button>
+                </div>
             </div>
         </div>
     </div>
@@ -926,8 +1093,104 @@ $approvedRS = $pdo->query("
         </div>
     </div>
 </div>
+<!-- ==========================================
+  8. MODAL: UPLOAD / ATTACH POST-DELIVERY RECEIPT (ISO 9001 AUDITED)
+=========================================== -->
+<div class="modal fade" id="uploadReceiptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold" id="uploadReceiptModalTitle">
+                    <i class="bi bi-cloud-arrow-up-fill text-primary me-2"></i>Attach Delivery Receipt
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <form id="uploadReceiptForm" onsubmit="handleUploadReceiptSubmit(event)" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="upload_po_receipt">
+                <input type="hidden" name="po_id" id="uploadReceiptPoId">
+
+                <div class="modal-body p-3 p-sm-4 bg-light">
+                    <!-- PO Details Summary Card -->
+                    <div class="card border border-primary-subtle shadow-xs mb-3 bg-white">
+                        <div class="card-body p-2.5">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label text-muted text-uppercase fw-bold mb-1" style="font-size: 0.72rem;">PO Number</label>
+                                    <input type="text" class="form-control form-control-sm fw-bold text-primary font-monospace bg-light"
+                                        id="uploadReceiptPoNoDisplay" readonly>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted text-uppercase fw-bold mb-1" style="font-size: 0.72rem;">Supplier</label>
+                                    <input type="text" class="form-control form-control-sm fw-bold text-dark bg-light"
+                                        id="uploadReceiptSupplierDisplay" readonly>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File / Camera Selector Card -->
+                    <div class="card border shadow-xs mb-3 bg-white">
+                        <div class="card-body p-3">
+                            <label class="form-label fw-bold text-dark small text-uppercase mb-2">
+                                <i class="bi bi-paperclip text-primary me-1"></i> Receipt Document / Photo <span class="text-danger">*</span>
+                            </label>
+
+                            <input type="file" name="proof_of_receipt" id="uploadReceiptFileInput"
+                                class="form-control fw-bold shadow-sm mb-2" accept="image/*,.pdf" capture="environment" required>
+
+                            <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                <i class="bi bi-info-circle me-1"></i>Accepted formats: <strong>JPG, PNG, WebP, or PDF</strong> (max 10MB). On mobile devices, this opens camera or photo gallery directly.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Receipt Reference / Invoicing Notes -->
+                    <div class="mb-2">
+                        <label for="uploadReceiptNotes" class="form-label fw-bold text-dark small text-uppercase">
+                            Official Receipt / Invoice Details <span class="text-muted fw-normal">(Optional)</span>
+                        </label>
+                        <textarea class="form-control shadow-sm" id="uploadReceiptNotes" name="receipt_notes" rows="2"
+                            placeholder="e.g. Official Sales Invoice #SI-98421, received on Sept 11, 2026."></textarea>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">
+                            <i class="bi bi-shield-check me-1"></i>A permanent ISO 9001 audit entry will be recorded with your name and timestamp.
+                        </small>
+                    </div>
+                </div>
+
+                <div class="modal-footer justify-content-between bg-white border-top">
+                    <button type="button" class="btn btn-light text-muted fw-bold px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" id="confirmUploadReceiptBtn" class="btn btn-primary fw-bold px-4 shadow-sm">
+                        <i class="bi bi-cloud-arrow-up me-1"></i> Save Receipt
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <script>
+    window.openUploadReceiptModal = function (id, poNo, supplierName, hasExisting) {
+        document.getElementById('uploadReceiptPoId').value = id;
+        document.getElementById('uploadReceiptPoNoDisplay').value = poNo || ('PO-' + id);
+        document.getElementById('uploadReceiptSupplierDisplay').value = supplierName || '-';
+        document.getElementById('uploadReceiptFileInput').value = '';
+        document.getElementById('uploadReceiptNotes').value = '';
+
+        const titleEl = document.getElementById('uploadReceiptModalTitle');
+        if (titleEl) {
+            titleEl.innerHTML = (hasExisting && hasExisting != '0')
+                ? '<i class="bi bi-arrow-repeat text-warning me-2"></i>Update / Replace Delivery Receipt'
+                : '<i class="bi bi-cloud-arrow-up-fill text-primary me-2"></i>Attach Delivery Receipt';
+        }
+
+        var myModalEl = document.getElementById('uploadReceiptModal');
+        var uploadModal = bootstrap.Modal.getInstance(myModalEl);
+        if (!uploadModal) {
+            uploadModal = new bootstrap.Modal(myModalEl);
+        }
+        uploadModal.show();
+    };
     window.openCancelPoModal = function (id, poNo, supplierName, rsNo) {
         document.getElementById('cancelPoId').value = id;
         document.getElementById('cancelPoNoDisplay').value = poNo || ('PO-' + id);
