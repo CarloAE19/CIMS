@@ -989,3 +989,114 @@ elseif ($action === 'mark_po_out_for_delivery') {
     }
 }
 
+// --- UPLOAD / ATTACH POST-DELIVERY RECEIPT ---
+elseif ($action === 'upload_po_receipt') {
+    header('Content-Type: application/json');
+    if (!in_array($_SESSION['user_role'], ['admin', 'purchasing', 'warehouse'])) {
+        echo json_encode(['status' => 'error', 'message' => 'Unauthorized. Only Purchasing, Warehouse, or Admin can attach receipts.']);
+        exit;
+    }
+
+    $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!empty($csrfToken) && function_exists('validate_csrf_token') && !validate_csrf_token($csrfToken)) {
+        echo json_encode(['status' => 'error', 'message' => 'Security token invalid or expired. Please refresh the page.']);
+        exit;
+    }
+
+    $po_id = filter_input(INPUT_POST, 'po_id', FILTER_VALIDATE_INT);
+    $receipt_notes = trim($_POST['receipt_notes'] ?? '');
+
+    if (!$po_id) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid Purchase Order ID.']);
+        exit;
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $poStmt = $pdo->prepare("SELECT p.*, s.company_name FROM purchase_orders p LEFT JOIN suppliers s ON p.supplier_id = s.id WHERE p.id = ? FOR UPDATE");
+        $poStmt->execute([$po_id]);
+        $po = $poStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$po) {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'Purchase Order not found.']);
+            exit;
+        }
+
+        if ($po['status'] === 'Cancelled') {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'Cannot attach receipts to a voided/cancelled Purchase Order.']);
+            exit;
+        }
+
+        // Validate and Save Receipt File using 5-layer SecureUploadHandler
+        require_once __DIR__ . '/../../classes/SecureUploadHandler.php';
+        $proofPath = null;
+        if (isset($_FILES['proof_of_receipt']) && $_FILES['proof_of_receipt']['error'] === UPLOAD_ERR_OK) {
+            $proofPath = SecureUploadHandler::validateAndSaveReceiptUpload(
+                $_FILES['proof_of_receipt'],
+                'receipts',
+                'receipt_' . $po_id . '_' . time()
+            );
+        }
+
+        // Fallback: If no file uploaded, check if live camera photo was captured
+        if (empty($proofPath) && !empty($_POST['captured_proof_base64'])) {
+            $proofPath = SecureUploadHandler::validateAndSaveBase64Image(
+                $_POST['captured_proof_base64'],
+                'receipts',
+                'camera_receipt_' . $po_id . '_' . time()
+            );
+        }
+
+        if (empty($proofPath)) {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'Please select a receipt document (PDF/Image) or capture a photo.']);
+            exit;
+        }
+
+        $filename = basename($proofPath);
+        $secureReceiptUrl = 'secure-image?type=receipts&file=' . urlencode($filename);
+
+        // Build permanent audit log trail (ISO 9001 Clause 8.5.2)
+        $timestamp = date('Y-m-d H:i:s');
+        $user_fullname = $_SESSION['user_fullname'] ?? $_SESSION['user_name'] ?? 'Authorized Officer';
+        $user_role = strtoupper($_SESSION['user_role'] ?? 'OFFICER');
+        $actionVerb = !empty($po['proof_of_receipt']) ? "UPDATED" : "ATTACHED";
+        $auditEntry = "[RECEIPT {$actionVerb} — {$timestamp} by {$user_fullname} ({$user_role})]";
+        if (!empty($receipt_notes)) {
+            $auditEntry .= "\nReference / Notes: {$receipt_notes}";
+        }
+        $auditEntry .= "\nDocument: {$filename}";
+
+        $existingRemarks = trim($po['delay_remarks'] ?? '');
+        $newRemarks = $existingRemarks !== '' ? $existingRemarks . "\n\n" . $auditEntry : $auditEntry;
+
+        $updateStmt = $pdo->prepare("UPDATE purchase_orders SET proof_of_receipt = ?, delay_remarks = ? WHERE id = ?");
+        $updateStmt->execute([$proofPath, $newRemarks, $po_id]);
+
+        $pdo->commit();
+
+        echo json_encode([
+            'status' => 'success',
+            'message' => "Proof of receipt for {$po['po_no']} has been successfully attached.",
+            'po_id' => $po_id,
+            'po_no' => $po['po_no'],
+            'secure_receipt_url' => $secureReceiptUrl,
+            'filename' => $filename
+        ]);
+        exit;
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Failed to upload receipt: ' . $e->getMessage()
+        ]);
+        exit;
+    }
+}
+
+
