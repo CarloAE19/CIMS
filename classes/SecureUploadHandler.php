@@ -323,21 +323,14 @@ class SecureUploadHandler
         $patterns = [
             '/<\?php/i',
             '/<\?=/i',
-            '/<\?(?!xml)/i',
-            '/<script/i',
-            '/eval\s*\(/i',
-            '/base64_decode\s*\(/i',
-            '/system\s*\(/i',
-            '/exec\s*\(/i',
-            '/passthru\s*\(/i',
-            '/shell_exec\s*\(/i',
-            '/proc_open\s*\(/i',
-            '/__halt_compiler/i'
+            '/<\s*script\b[^>]*>/i',
+            '/<\s*\/\s*script\s*>/i',
+            '/<\s*%(?!PDF)/i' // ASP/JSP code tags, ignoring %PDF header
         ];
 
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $buffer)) {
-                throw new Exception("Security Violation: Executable code or backdoor payload detected inside uploaded content.");
+                throw new Exception("Security Violation: Executable code or script tag detected inside uploaded content.");
             }
         }
     }
