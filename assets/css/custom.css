@@ -557,6 +557,11 @@ body:has(#profileFullSigModal.show) #cims-chatbot-container {
     color: var(--gb-dark-text-main) !important;
 }
 
+[data-bs-theme="dark"] .modal-body {
+    background-color: var(--gb-dark-bg) !important;
+    color: var(--gb-dark-text-main) !important;
+}
+
 [data-bs-theme="dark"] .modal-footer {
     background-color: var(--gb-dark-surface) !important;
     border-top: 1px solid var(--gb-dark-border) !important;
@@ -564,6 +569,57 @@ body:has(#profileFullSigModal.show) #cims-chatbot-container {
 
 [data-bs-theme="dark"] .btn-close {
     filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* Modal Inner Summary Cards, Preview Containers & Remarks */
+[data-bs-theme="dark"] .modal .doc-summary-card,
+[data-bs-theme="dark"] .modal-body .doc-summary-card,
+[data-bs-theme="dark"] .modal-body .table-container-custom,
+[data-bs-theme="dark"] .modal-body .remarks-box,
+[data-bs-theme="dark"] #viewProjectRsModal .modal-body .bg-white,
+[data-bs-theme="dark"] #viewProjectWdModal .modal-body .bg-white,
+[data-bs-theme="dark"] #viewPoModal .modal-body .bg-white,
+[data-bs-theme="dark"] #viewWithdrawalModal .modal-body .bg-white {
+    background-color: var(--gb-dark-surface) !important;
+    border-color: var(--gb-dark-border) !important;
+    color: var(--gb-dark-text-main) !important;
+}
+
+[data-bs-theme="dark"] .modal-body .table thead,
+[data-bs-theme="dark"] .modal-body .table thead th {
+    background-color: #1e242d !important;
+    color: #94a3b8 !important;
+    border-color: var(--gb-dark-border) !important;
+}
+
+[data-bs-theme="dark"] .modal-body .table tbody td {
+    background-color: transparent !important;
+    color: var(--gb-dark-text-main) !important;
+    border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+[data-bs-theme="dark"] .modal-body .table tbody tr:hover td {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+[data-bs-theme="dark"] .modal-body .item-code-badge {
+    background-color: #1f2937 !important;
+    color: #60a5fa !important;
+    border-color: #374151 !important;
+}
+
+[data-bs-theme="dark"] .modal-body .text-dark {
+    color: var(--gb-dark-text-main) !important;
+}
+
+[data-bs-theme="dark"] .modal-body .text-muted {
+    color: var(--gb-dark-text-muted) !important;
+}
+
+[data-bs-theme="dark"] .modal-body details div.bg-light {
+    background-color: #1a202c !important;
+    border-color: var(--gb-dark-border) !important;
+    color: #cbd5e1 !important;
 }
 
 /* Dropdowns & Popovers */
