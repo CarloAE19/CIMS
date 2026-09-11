@@ -885,3 +885,107 @@ elseif ($action === 'cancel_po') {
         exit;
     }
 }
+
+// --- MARK PURCHASE ORDER OUT FOR DELIVERY ---
+elseif ($action === 'mark_po_out_for_delivery') {
+    header('Content-Type: application/json');
+    if (!in_array($_SESSION['user_role'], ['purchasing', 'admin', 'warehouse'])) {
+        echo json_encode(['status' => 'error', 'message' => 'Unauthorized. Only Purchasing, Warehouse, or Admin can update delivery status.']);
+        exit;
+    }
+
+    $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!empty($csrfToken) && function_exists('validate_csrf_token') && !validate_csrf_token($csrfToken)) {
+        echo json_encode(['status' => 'error', 'message' => 'Security token invalid or expired. Please refresh the page.']);
+        exit;
+    }
+
+    $po_id = filter_input(INPUT_POST, 'po_id', FILTER_VALIDATE_INT);
+    $delivery_notes = trim($_POST['delivery_notes'] ?? '');
+
+    if (!$po_id) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid Purchase Order ID.']);
+        exit;
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $poStmt = $pdo->prepare("SELECT p.*, s.company_name FROM purchase_orders p LEFT JOIN suppliers s ON p.supplier_id = s.id WHERE p.id = ? FOR UPDATE");
+        $poStmt->execute([$po_id]);
+        $po = $poStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$po) {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'Purchase Order not found.']);
+            exit;
+        }
+
+        if (in_array($po['status'], ['Delivered', 'Delivered (Discrepancy)'])) {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'Cannot mark a delivered Purchase Order as Out for Delivery.']);
+            exit;
+        }
+
+        if ($po['status'] === 'Cancelled') {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'Cannot dispatch a cancelled/voided Purchase Order.']);
+            exit;
+        }
+
+        if ($po['status'] === 'Out for Delivery') {
+            $pdo->rollBack();
+            echo json_encode(['status' => 'error', 'message' => 'This Purchase Order is already marked as Out for Delivery.']);
+            exit;
+        }
+
+        // Build permanent audit log trail (ISO 9001 Clause 8.5.2)
+        $timestamp = date('Y-m-d H:i:s');
+        $user_fullname = $_SESSION['user_fullname'] ?? $_SESSION['user_name'] ?? 'Authorized Officer';
+        $user_role = strtoupper($_SESSION['user_role'] ?? 'OFFICER');
+        $auditEntry = "[OUT FOR DELIVERY — {$timestamp} by {$user_fullname} ({$user_role})]";
+        if (!empty($delivery_notes)) {
+            $auditEntry .= "\nCourier / Dispatch Details: {$delivery_notes}";
+        } else {
+            $auditEntry .= "\nShipment is en route from {$po['company_name']} to warehouse/jobsite.";
+        }
+
+        $existingRemarks = trim($po['delay_remarks'] ?? '');
+        $newRemarks = $existingRemarks !== '' ? $existingRemarks . "\n\n" . $auditEntry : $auditEntry;
+
+        $updateStmt = $pdo->prepare("UPDATE purchase_orders SET status = 'Out for Delivery', delay_remarks = ? WHERE id = ?");
+        $updateStmt->execute([$newRemarks, $po_id]);
+
+        // Dispatch notifications to warehouse, management, purchasing
+        $notifTitle = "🚚 PO Out for Delivery: " . $po['po_no'];
+        $notifBody = "PO {$po['po_no']} from {$po['company_name']} is now in transit / out for delivery." . (!empty($delivery_notes) ? " Notes: {$delivery_notes}" : "");
+
+        foreach (['warehouse', 'management', 'purchasing'] as $targetRole) {
+            $notifStmt = $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES (?, ?, ?)");
+            $notifStmt->execute([$targetRole, $notifTitle, $notifBody]);
+            if (function_exists('sendPushNotification')) {
+                sendPushNotification($pdo, $notifTitle, $notifBody, $targetRole, null);
+            }
+        }
+
+        $pdo->commit();
+
+        echo json_encode([
+            'status' => 'success',
+            'message' => "Purchase Order {$po['po_no']} is now marked Out for Delivery!",
+            'po_no' => $po['po_no'],
+            'new_status' => 'Out for Delivery'
+        ]);
+        exit;
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Failed to update delivery status: ' . $e->getMessage()
+        ]);
+        exit;
+    }
+}
+
