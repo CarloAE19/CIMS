@@ -300,6 +300,82 @@ include 'layout/header.php';
         color: #475569;
         line-height: 1.5;
     }
+
+    /* View RS Modal — High-End Dark Theme Overrides */
+    [data-bs-theme="dark"] #viewRsModal .modal-body {
+        background-color: var(--gb-dark-bg, #0d1117) !important;
+        color: var(--gb-dark-text-main, #f0f6fc) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal .doc-summary-card {
+        background: var(--gb-dark-surface, #161b22) !important;
+        border-color: var(--gb-dark-border, #30363d) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal #viewRsNo {
+        color: var(--gb-dark-accent, #58a6ff) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal #viewRsProject {
+        color: #e6edf3 !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal #viewRsRequestor,
+    [data-bs-theme="dark"] #viewRsModal #viewRsDate {
+        color: #f0f6fc !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal .table-container-custom {
+        background: var(--gb-dark-surface, #161b22) !important;
+        border-color: var(--gb-dark-border, #30363d) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal .table {
+        background-color: transparent !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal .table thead,
+    [data-bs-theme="dark"] #viewRsModal .table thead th {
+        background-color: #1f242c !important;
+        color: #8b949e !important;
+        border-color: var(--gb-dark-border, #30363d) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal #viewRsItemsBody td {
+        background-color: transparent !important;
+        color: var(--gb-dark-text-main, #f0f6fc) !important;
+        border-color: rgba(255, 255, 255, 0.06) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal #viewRsItemsBody tr:hover td {
+        background-color: rgba(255, 255, 255, 0.04) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal #viewRsItemsBody .text-dark {
+        color: #f0f6fc !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal #viewRsItemsBody .text-muted {
+        color: #8b949e !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal .item-code-badge {
+        background-color: #21262d !important;
+        color: #58a6ff !important;
+        border-color: #30363d !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal .item-remark-pill {
+        background-color: rgba(239, 68, 68, 0.15) !important;
+        color: #fca5a5 !important;
+        border-color: rgba(239, 68, 68, 0.3) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal details div.bg-light {
+        background-color: #1f242c !important;
+        border-color: var(--gb-dark-border, #30363d) !important;
+        color: #c9d1d9 !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal details summary {
+        color: #58a6ff !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal .remarks-box {
+        background: var(--gb-dark-surface, #161b22) !important;
+        border-color: var(--gb-dark-border, #30363d) !important;
+        color: var(--gb-dark-text-main, #f0f6fc) !important;
+    }
+    [data-bs-theme="dark"] #viewRsModal .modal-footer {
+        background-color: var(--gb-dark-surface, #161b22) !important;
+        border-top: 1px solid var(--gb-dark-border, #30363d) !important;
+    }
+
     /* Interactive KPI Filter Tiles */
     .rs-filter-tile {
         cursor: pointer;
@@ -320,11 +396,24 @@ include 'layout/header.php';
         box-shadow: 0 0 0 2px var(--gb-blue, #0033CC), 0 8px 20px rgba(0, 51, 204, 0.12) !important;
         background-color: #f8fafc !important;
     }
+    [data-bs-theme="dark"] .rs-filter-tile.active-filter {
+        box-shadow: 0 0 0 2px var(--gb-dark-accent, #58a6ff), 0 8px 20px rgba(0, 0, 0, 0.4) !important;
+        background-color: var(--gb-dark-hover, #21262d) !important;
+        color: #f0f6fc !important;
+    }
     .rs-filter-tile[data-filter="pending"].active-filter {
         box-shadow: 0 0 0 2px var(--gb-yellow, #ffc107), 0 8px 20px rgba(255, 193, 7, 0.2) !important;
     }
+    [data-bs-theme="dark"] .rs-filter-tile[data-filter="pending"].active-filter {
+        box-shadow: 0 0 0 2px var(--gb-yellow, #ffc107), 0 8px 20px rgba(255, 193, 7, 0.25) !important;
+        background-color: var(--gb-dark-hover, #21262d) !important;
+    }
     .rs-filter-tile[data-filter="approved"].active-filter {
         box-shadow: 0 0 0 2px #198754, 0 8px 20px rgba(25, 135, 84, 0.2) !important;
+    }
+    [data-bs-theme="dark"] .rs-filter-tile[data-filter="approved"].active-filter {
+        box-shadow: 0 0 0 2px #2ea043, 0 8px 20px rgba(46, 160, 67, 0.25) !important;
+        background-color: var(--gb-dark-hover, #21262d) !important;
     }
 
     #rsTable tbody tr.rs-empty-row {
