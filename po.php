@@ -226,6 +226,104 @@ include 'layout/header.php';
         text-decoration: underline !important;
     }
 
+    /* PO Modal Tab Navigation & Polish */
+    #poDetailsTab .nav-link {
+        color: #475569;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        transition: all 0.15s ease-in-out;
+    }
+    #poDetailsTab .nav-link:hover {
+        color: #0f172a;
+        background-color: #f1f5f9;
+    }
+    #poDetailsTab .nav-link.active {
+        color: #fff;
+        background-color: #0d6efd;
+        box-shadow: 0 2px 6px rgba(13, 110, 253, 0.25);
+    }
+    @media (max-width: 767.98px) {
+        #poDetailsTab .nav-link {
+            font-size: 0.72rem !important;
+            padding: 6px 4px !important;
+        }
+    }
+
+    /* PO Fulfillment Timeline Styles */
+    .po-timeline {
+        position: relative;
+        padding-left: 32px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+    }
+    .po-timeline::before {
+        content: '';
+        position: absolute;
+        top: 6px;
+        bottom: 6px;
+        left: 12px;
+        width: 2px;
+        background-color: #e2e8f0;
+    }
+    .po-timeline-step {
+        position: relative;
+        margin-bottom: 18px;
+    }
+    .po-timeline-step:last-child {
+        margin-bottom: 0;
+    }
+    .po-timeline-node {
+        position: absolute;
+        left: -32px;
+        top: 2px;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background-color: #fff;
+        border: 2px solid #94a3b8;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        z-index: 2;
+        transition: all 0.2s ease;
+    }
+    .po-timeline-node.completed {
+        background-color: #10b981;
+        border-color: #10b981;
+        color: #fff;
+    }
+    .po-timeline-node.active {
+        background-color: #0284c7;
+        border-color: #0284c7;
+        color: #fff;
+        box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.25);
+        animation: timelinePulse 2s infinite;
+    }
+    .po-timeline-node.warning {
+        background-color: #f59e0b;
+        border-color: #f59e0b;
+        color: #fff;
+    }
+    .po-timeline-node.muted {
+        background-color: #f8fafc;
+        border-color: #cbd5e1;
+        color: #94a3b8;
+    }
+    @keyframes timelinePulse {
+        0% { box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.4); }
+        70% { box-shadow: 0 0 0 7px rgba(2, 132, 199, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(2, 132, 199, 0); }
+    }
+    .po-timeline-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+
         #poTable {
             display: block;
             width: 100%;
@@ -903,19 +1001,26 @@ include 'layout/header.php';
                                                     </li>
                                                 <?php endif; ?>
 
-                                                <?php if (!empty($secureReceiptUrl) || !empty($po['delay_remarks']) || $canManageLogistics): ?>
+                                                <?php if (in_array($role, ['admin', 'warehouse', 'purchasing']) && $po['status'] !== 'Cancelled'): ?>
                                                     <li><hr class="dropdown-divider my-1"></li>
-                                                <?php endif; ?>
-
-                                                <?php if (!empty($secureReceiptUrl)): ?>
+                                                    <!-- Upload / Attach Delivery Receipt (Post-Delivery & Active) -->
                                                     <li>
-                                                        <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="<?= htmlspecialchars($secureReceiptUrl) ?>"
-                                                            onclick="event.preventDefault(); window.openPhotoWindow('<?= htmlspecialchars($secureReceiptUrl) ?>');">
-                                                            <i class="bi bi-paperclip text-info fs-6" style="width: 18px;"></i>
-                                                            <span>View Proof of Receipt</span>
-                                                        </a>
+                                                        <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 text-primary fw-semibold"
+                                                            onclick="openUploadReceiptModal(<?= $po['id'] ?>, '<?= htmlspecialchars($po['po_no'], ENT_QUOTES) ?>', '<?= htmlspecialchars($po['company_name'] ?? '', ENT_QUOTES) ?>', '<?= !empty($receiptFile) ? 1 : 0 ?>')">
+                                                            <i class="bi bi-cloud-arrow-up fs-6" style="width: 18px;"></i>
+                                                            <span id="uploadReceiptMenuText_<?= $po['id'] ?>"><?= !empty($receiptFile) ? 'Update / Replace Receipt' : 'Attach Delivery Receipt' ?></span>
+                                                        </button>
                                                     </li>
                                                 <?php endif; ?>
+
+                                                <!-- View Proof of Receipt (Dynamic Container) -->
+                                                <li id="receiptViewItemWrap_<?= $po['id'] ?>" class="<?= empty($secureReceiptUrl) ? 'd-none' : '' ?>">
+                                                    <a id="receiptViewLink_<?= $po['id'] ?>" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 text-info fw-semibold" href="<?= htmlspecialchars($secureReceiptUrl ?: '#') ?>"
+                                                        onclick="event.preventDefault(); window.openPhotoWindow(this.getAttribute('href'));">
+                                                        <i class="bi bi-paperclip fs-6" style="width: 18px;"></i>
+                                                        <span>View Proof of Receipt</span>
+                                                    </a>
+                                                </li>
 
                                                 <?php if (!empty($po['delay_remarks'])): ?>
                                                     <li>
@@ -1843,11 +1948,29 @@ include 'layout/header.php';
     // ==========================================
     // VIRTUAL PO DOCUMENT & PRINT LOGIC
     // ==========================================
+    window.currentPoModalData = null;
+
+    window.triggerPoReceiptModal = function (hasExisting) {
+        if (!window.currentPoModalData) return;
+        const po = window.currentPoModalData;
+        const isExisting = hasExisting !== undefined ? hasExisting : Boolean(po.proof_of_receipt && po.proof_of_receipt.trim() !== '');
+        openUploadReceiptModal(po.id, po.po_no, po.company_name, isExisting ? 1 : 0);
+    };
+
     window.openPoPrintModal = async function (poId) {
         const spinner = document.getElementById('poPrintLoadingSpinner');
+        const modalContent = document.getElementById('poPrintModalContent');
         const paper = document.getElementById('poPrintPaper');
         if (spinner) spinner.classList.remove('d-none');
+        if (modalContent) modalContent.classList.add('d-none');
         if (paper) paper.classList.add('d-none');
+
+        // Always activate Tab 1 (PO Document) when opening modal
+        const docTabBtn = document.getElementById('poTabDocBtn');
+        if (docTabBtn && typeof bootstrap !== 'undefined') {
+            const tabInstance = bootstrap.Tab.getInstance(docTabBtn) || new bootstrap.Tab(docTabBtn);
+            tabInstance.show();
+        }
 
         var myModalEl = document.getElementById('poPrintModal');
         var printModal = bootstrap.Modal.getInstance(myModalEl);
@@ -1867,6 +1990,12 @@ include 'layout/header.php';
 
             if (data.status === 'success') {
                 const po = data.po;
+                window.currentPoModalData = po;
+
+                // Update Header PO badge
+                const headerPoNo = document.getElementById('poModalHeaderPoNo');
+                if (headerPoNo) headerPoNo.innerText = po.po_no || ('PO-' + po.id);
+
                 document.getElementById('printPoNo').innerText = po.po_no;
                 let docStatus = po.status || 'Generated';
                 if (docStatus === 'Viber Order Sent' || docStatus === 'SMS Sent') {
@@ -2009,15 +2138,280 @@ include 'layout/header.php';
                     poQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
                 }
 
+                // ==========================================
+                // POPULATE TAB 2: ATTACHED DELIVERY RECEIPT
+                // ==========================================
+                const receiptBadge = document.getElementById('poReceiptTabBadge');
+                const attachedView = document.getElementById('poReceiptAttachedView');
+                const emptyView = document.getElementById('poReceiptEmptyView');
+                const attachBtn = document.getElementById('poModalAttachReceiptBtn');
+
+                if (po.proof_of_receipt && po.proof_of_receipt.trim() !== '') {
+                    const filename = po.proof_of_receipt.split('/').pop().split('\\').pop();
+                    const secureUrl = `secure_image.php?type=receipts&file=${encodeURIComponent(filename)}&t=${Date.now()}`;
+                    const ext = filename.split('.').pop().toUpperCase();
+                    const isPdf = ext === 'PDF';
+
+                    if (receiptBadge) {
+                        receiptBadge.className = 'badge rounded-pill bg-success ms-1';
+                        receiptBadge.innerHTML = '<i class="bi bi-check2"></i> Attached';
+                    }
+
+                    if (attachedView) attachedView.classList.remove('d-none');
+                    if (emptyView) emptyView.classList.add('d-none');
+
+                    const extBadge = document.getElementById('poReceiptFileExtBadge');
+                    if (extBadge) extBadge.innerText = ext;
+
+                    const extLink = document.getElementById('poReceiptExternalLink');
+                    if (extLink) extLink.href = secureUrl;
+
+                    const imgEl = document.getElementById('poReceiptImagePreview');
+                    const pdfWrap = document.getElementById('poReceiptPdfWrap');
+                    const pdfFrame = document.getElementById('poReceiptPdfFrame');
+
+                    if (isPdf) {
+                        if (imgEl) imgEl.classList.add('d-none');
+                        if (pdfWrap) pdfWrap.classList.remove('d-none');
+                        if (pdfFrame) pdfFrame.src = secureUrl;
+                    } else {
+                        if (pdfWrap) pdfWrap.classList.add('d-none');
+                        if (pdfFrame) pdfFrame.src = '';
+                        if (imgEl) {
+                            imgEl.src = secureUrl;
+                            imgEl.classList.remove('d-none');
+                        }
+                    }
+
+                    const metaEl = document.getElementById('poReceiptUploadMeta');
+                    const notesBox = document.getElementById('poReceiptNotesBox');
+                    const notesText = document.getElementById('poReceiptNotesText');
+
+                    let receiptMetaStr = '<i class="bi bi-file-earmark-arrow-up me-1"></i>Document archived in secure storage';
+                    let receiptNotesStr = '';
+
+                    if (po.delay_remarks) {
+                        const m = po.delay_remarks.match(/\[RECEIPT\s+(?:ATTACHED|UPDATED)\s+[—\-]\s+([^\]]+)\]/i);
+                        if (m && m[1]) {
+                            receiptMetaStr = '<i class="bi bi-person-check me-1"></i>Uploaded: ' + m[1];
+                        }
+                        const noteMatch = po.delay_remarks.match(/Reference \/ Notes:\s*([^\n\r]+)/i);
+                        if (noteMatch && noteMatch[1]) {
+                            receiptNotesStr = noteMatch[1].trim();
+                        }
+                    }
+                    if (metaEl) metaEl.innerHTML = receiptMetaStr;
+                    if (notesBox && notesText) {
+                        if (receiptNotesStr) {
+                            notesText.innerText = receiptNotesStr;
+                            notesBox.classList.remove('d-none');
+                        } else {
+                            notesBox.classList.add('d-none');
+                        }
+                    }
+
+                    if (attachBtn) {
+                        attachBtn.classList.remove('d-none');
+                        attachBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Replace Receipt';
+                    }
+                } else {
+                    if (receiptBadge) {
+                        receiptBadge.className = 'badge rounded-pill bg-secondary ms-1';
+                        receiptBadge.innerText = 'None';
+                    }
+                    if (attachedView) attachedView.classList.add('d-none');
+                    if (emptyView) emptyView.classList.remove('d-none');
+                    if (attachBtn) {
+                        attachBtn.classList.remove('d-none');
+                        attachBtn.innerHTML = '<i class="bi bi-paperclip me-1"></i> Attach Receipt';
+                    }
+                }
+
+                // ==========================================
+                // POPULATE TAB 3: FULFILLMENT TIMELINE
+                // ==========================================
+                const tlStatusBadge = document.getElementById('poTimelineStatusBadge');
+                if (tlStatusBadge) {
+                    tlStatusBadge.innerText = po.status || 'Generated';
+                    tlStatusBadge.className = 'badge px-2 py-1 mt-0.5 ' + (
+                        po.status === 'Delivered' ? 'bg-success' :
+                        po.status === 'Out for Delivery' ? 'bg-primary' :
+                        po.status === 'Cancelled' ? 'bg-danger' :
+                        'bg-secondary'
+                    );
+                }
+                const tlSupplier = document.getElementById('poTimelineSupplier');
+                if (tlSupplier) tlSupplier.innerText = po.company_name || 'N/A';
+                const tlRsNo = document.getElementById('poTimelineRsNo');
+                if (tlRsNo) tlRsNo.innerText = po.rs_no || 'N/A';
+                const tlEta = document.getElementById('poTimelineEta');
+                if (tlEta) tlEta.innerText = data.formatted_eta || 'Not Set';
+
+                if (typeof window.renderPoTimeline === 'function') {
+                    window.renderPoTimeline(po, data);
+                }
+
                 if (spinner) spinner.classList.add('d-none');
+                if (modalContent) modalContent.classList.remove('d-none');
                 if (paper) paper.classList.remove('d-none');
             } else {
-                alert("Failed to load PO document: " + data.message);
+                alert("Failed to load PO details: " + data.message);
                 if (printModal) printModal.hide();
             }
         } catch (e) {
+            console.error('Fetch PO details error:', e);
             alert("Network error: Could not fetch PO document details.");
             if (printModal) printModal.hide();
+        }
+    };
+
+    // ==========================================
+    // RENDER PO TIMELINE & AUDIT TRAIL (TAB 3)
+    // ==========================================
+    window.renderPoTimeline = function (po, data) {
+        const container = document.getElementById('poTimelineContainer');
+        if (!container) return;
+
+        const status = po.status || 'Generated';
+        const isCancelled = status === 'Cancelled';
+        const isDelivered = status === 'Delivered';
+        const isOutForDelivery = status === 'Out for Delivery';
+        const isViberSent = status === 'Viber Order Sent' || isOutForDelivery || isDelivered;
+        const hasReceipt = Boolean(po.proof_of_receipt && po.proof_of_receipt.trim() !== '');
+
+        let outForDeliveryNote = '';
+        let outForDeliveryMeta = '';
+        let receiptMeta = '';
+        const delayIncidents = [];
+
+        if (po.delay_remarks) {
+            const lines = po.delay_remarks.split('\n');
+            let currentBlock = '';
+            let currentHeader = '';
+
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('[') && trimmed.includes(']')) {
+                    if (currentHeader && currentBlock) {
+                        processRemarkBlock(currentHeader, currentBlock);
+                    }
+                    currentHeader = trimmed;
+                    currentBlock = '';
+                } else if (trimmed) {
+                    currentBlock += (currentBlock ? '\n' : '') + trimmed;
+                }
+            });
+            if (currentHeader && currentBlock) {
+                processRemarkBlock(currentHeader, currentBlock);
+            }
+        }
+
+        function processRemarkBlock(header, content) {
+            if (header.includes('OUT FOR DELIVERY')) {
+                outForDeliveryMeta = header.replace(/^\[|\]$/g, '');
+                outForDeliveryNote = content;
+            } else if (header.includes('RECEIPT')) {
+                receiptMeta = header.replace(/^\[|\]$/g, '');
+            } else if (header.includes('DELIVERY DISCREPANCY') || header.includes('DELAY ALERT') || header.includes('PO VOIDED') || header.includes('ETA UPDATED')) {
+                delayIncidents.push({ header: header.replace(/^\[|\]$/g, ''), content: content });
+            }
+        }
+
+        const steps = [
+            {
+                title: 'Purchase Order Created & Authorized',
+                icon: 'bi-file-earmark-check-fill',
+                nodeClass: 'completed',
+                date: data.formatted_date,
+                subtitle: `Prepared by <strong>${po.prepared_by_name || 'Purchasing'}</strong> &bull; Authorized by <strong>${po.approved_by_name || 'Management'}</strong>`,
+                extra: `Linked Requisition: <span class="badge bg-light text-primary border">${po.rs_no || 'N/A'}</span> &bull; Project: <em>${po.project_name || 'Warehouse Restock'}</em>`
+            },
+            {
+                title: 'Supplier Order Transmitted',
+                icon: 'bi-send-check-fill',
+                nodeClass: isCancelled ? 'muted' : (isViberSent ? 'completed' : 'muted'),
+                date: isViberSent ? 'Dispatched to Supplier' : 'Pending Transmission',
+                subtitle: `Transmitted to <strong>${po.company_name || 'Supplier'}</strong> (${po.contact_person || 'Representative'})`,
+                extra: `Expected Delivery Target (ETA): <span class="fw-bold text-dark">${data.formatted_eta || 'Not Set'}</span>`
+            },
+            {
+                title: 'Out for Delivery / In Transit',
+                icon: 'bi-truck',
+                nodeClass: isCancelled ? 'muted' : (isDelivered ? 'completed' : (isOutForDelivery ? 'active' : 'muted')),
+                date: isOutForDelivery ? 'In Transit Right Now' : (isDelivered ? 'Transit Completed' : 'Awaiting Supplier Dispatch'),
+                subtitle: outForDeliveryMeta ? `<i class="bi bi-clock me-1"></i>${outForDeliveryMeta}` : (isOutForDelivery ? 'Dispatched by supplier and currently en route to warehouse.' : 'Shipment has not been marked out for delivery yet.'),
+                extra: outForDeliveryNote ? `<div class="p-1.5 bg-light rounded border mt-1 small font-monospace"><i class="bi bi-card-text me-1 text-primary"></i>${outForDeliveryNote}</div>` : ''
+            },
+            {
+                title: 'Warehouse Receiving & Stock-In',
+                icon: 'bi-box-seam-fill',
+                nodeClass: isCancelled ? 'muted' : (isDelivered ? 'completed' : 'muted'),
+                date: isDelivered ? 'Stocked In Successfully' : 'Awaiting Arrival',
+                subtitle: isDelivered ? 'All ordered materials verified and stocked into warehouse inventory.' : 'Materials will be received and counted upon delivery arrival.',
+                extra: ''
+            },
+            {
+                title: 'Official Delivery Receipt / Invoicing Proof',
+                icon: 'bi-file-earmark-medical-fill',
+                nodeClass: hasReceipt ? 'completed' : (isDelivered ? 'warning' : 'muted'),
+                date: hasReceipt ? 'Document Attached & Secured' : (isDelivered ? 'Action Required: Attach Receipt' : 'Pending Receipt'),
+                subtitle: hasReceipt ? (receiptMeta || 'Delivery receipt uploaded to secure repository.') : (isDelivered ? 'Items delivered. Please upload supplier receipt / sales invoice to complete audit trail.' : 'Awaiting receipt upload after physical delivery.'),
+                extra: hasReceipt ? `<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 mt-1" onclick="document.getElementById('poTabReceiptBtn').click()"><i class="bi bi-paperclip me-1"></i>View Attached Receipt</button>` : ''
+            }
+        ];
+
+        if (isCancelled) {
+            steps.push({
+                title: 'Purchase Order Voided / Cancelled',
+                icon: 'bi-slash-circle-fill',
+                nodeClass: 'warning',
+                date: 'Voided',
+                subtitle: 'This purchase order has been cancelled and its audit trail frozen.',
+                extra: ''
+            });
+        }
+
+        let html = '';
+        steps.forEach(step => {
+            html += `
+                <div class="po-timeline-step">
+                    <div class="po-timeline-node ${step.nodeClass}">
+                        <i class="bi ${step.icon}"></i>
+                    </div>
+                    <div class="po-timeline-card">
+                        <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-1 mb-1">
+                            <div class="fw-bold text-dark" style="font-size: 0.82rem;">${step.title}</div>
+                            <span class="badge ${step.nodeClass === 'completed' ? 'bg-success-subtle text-success border border-success-subtle' : step.nodeClass === 'active' ? 'bg-primary text-white' : step.nodeClass === 'warning' ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' : 'bg-light text-muted border'}" style="font-size: 0.65rem;">
+                                ${step.date}
+                            </span>
+                        </div>
+                        <div class="text-secondary small" style="font-size: 0.74rem;">${step.subtitle}</div>
+                        ${step.extra ? `<div class="mt-1 small" style="font-size: 0.72rem;">${step.extra}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+
+        const alertsSection = document.getElementById('poTimelineAlertsSection');
+        const alertsBody = document.getElementById('poTimelineAlertsBody');
+        const alertsCount = document.getElementById('poTimelineAlertCount');
+
+        if (delayIncidents.length > 0) {
+            if (alertsCount) alertsCount.innerText = delayIncidents.length;
+            let incHtml = '';
+            delayIncidents.forEach((inc, idx) => {
+                incHtml += `
+                    <div class="p-2 bg-light rounded border mb-2 ${idx === delayIncidents.length - 1 ? 'mb-0' : ''}">
+                        <div class="fw-bold text-dark" style="font-size: 0.74rem;"><i class="bi bi-exclamation-circle-fill text-warning me-1"></i>${inc.header}</div>
+                        <div class="text-secondary mt-1 font-monospace" style="font-size: 0.72rem; white-space: pre-wrap;">${inc.content}</div>
+                    </div>
+                `;
+            });
+            if (alertsBody) alertsBody.innerHTML = incHtml;
+            if (alertsSection) alertsSection.classList.remove('d-none');
+        } else {
+            if (alertsSection) alertsSection.classList.add('d-none');
         }
     };
 
@@ -2647,6 +3041,119 @@ include 'layout/header.php';
                 Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to communicate with server.' });
             } else {
                 alert('Network error: Could not reach server.');
+            }
+        }
+    };
+
+    // ==========================================
+    // UPLOAD / ATTACH RECEIPT AJAX SUBMISSION
+    // ==========================================
+    window.handleUploadReceiptSubmit = async function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+
+        const form = document.getElementById('uploadReceiptForm');
+        if (!form) return;
+
+        const fileInput = document.getElementById('uploadReceiptFileInput');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ icon: 'warning', title: 'File Required', text: 'Please select a receipt document (PDF, JPG, PNG).' });
+            } else {
+                alert('Please select a receipt document.');
+            }
+            return;
+        }
+
+        const poId = document.getElementById('uploadReceiptPoId').value;
+        const poNo = document.getElementById('uploadReceiptPoNoDisplay').value;
+        const submitBtn = document.getElementById('confirmUploadReceiptBtn');
+        const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Uploading Receipt...';
+        }
+
+        const formData = new FormData(form);
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const headers = {};
+        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+        try {
+            const response = await fetch('process/process.php', {
+                method: 'POST',
+                body: formData,
+                headers: headers
+            });
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                const modalEl = document.getElementById('uploadReceiptModal');
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) modalInstance.hide();
+
+                // Dynamically update the dropdown menu items in the table row
+                const receiptWrap = document.getElementById('receiptViewItemWrap_' + poId);
+                const receiptLink = document.getElementById('receiptViewLink_' + poId);
+                if (receiptWrap && receiptLink && result.secure_receipt_url) {
+                    receiptLink.setAttribute('href', result.secure_receipt_url);
+                    receiptWrap.classList.remove('d-none');
+                }
+
+                const menuText = document.getElementById('uploadReceiptMenuText_' + poId);
+                if (menuText) {
+                    menuText.innerText = 'Update / Replace Receipt';
+                }
+
+                // If PO details modal is currently open or loaded, refresh it and switch to Receipt tab
+                if (window.currentPoModalData && window.currentPoModalData.id == poId) {
+                    openPoPrintModal(poId);
+                    setTimeout(() => {
+                        const receiptTabBtn = document.getElementById('poTabReceiptBtn');
+                        if (receiptTabBtn && typeof bootstrap !== 'undefined') {
+                            const tab = bootstrap.Tab.getInstance(receiptTabBtn) || new bootstrap.Tab(receiptTabBtn);
+                            tab.show();
+                        }
+                    }, 400);
+                }
+
+                if (typeof Swal !== 'undefined') {
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Receipt Attached',
+                        text: result.message || 'Delivery receipt has been attached successfully.',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    alert(result.message || 'Delivery receipt has been attached successfully.');
+                }
+            } else {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Upload Failed',
+                        text: result.message || 'Could not attach receipt document.'
+                    });
+                } else {
+                    alert(result.message || 'Could not attach receipt document.');
+                }
+            }
+        } catch (err) {
+            console.error('Error uploading receipt:', err);
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'An unexpected network error occurred while uploading the receipt. Please try again.'
+                });
+            } else {
+                alert('Network error: Could not connect to server.');
+            }
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
             }
         }
     };
