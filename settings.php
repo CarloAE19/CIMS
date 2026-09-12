@@ -89,14 +89,21 @@ $projects = $pdo->query("
 // 5. Fetch General System Settings
 $bg_path = 'assets/img/default_login_bg.png';
 $cur_blur = 12;
+$cur_idle_enabled = true;
+$cur_idle_lock = 15;
+$cur_idle_logout = 30;
+
 try {
-    $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('login_background','login_blur')");
+    $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('login_background','login_blur','idle_lock_enabled','idle_lock_minutes','idle_logout_minutes')");
     $stmt->execute();
     $lc_settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     if (!empty($lc_settings['login_background']))
         $bg_path = $lc_settings['login_background'];
     if (isset($lc_settings['login_blur']) && $lc_settings['login_blur'] !== '')
         $cur_blur = (int) $lc_settings['login_blur'];
+    $cur_idle_enabled = ($lc_settings['idle_lock_enabled'] ?? '1') === '1';
+    $cur_idle_lock = (int) ($lc_settings['idle_lock_minutes'] ?? 15);
+    $cur_idle_logout = (int) ($lc_settings['idle_logout_minutes'] ?? 30);
 } catch (Exception $e) {
 }
 $cur_blur = max(0, min(30, $cur_blur));
@@ -945,6 +952,90 @@ include 'layout/header.php';
                     </div>
                 </div><!-- /row -->
 
+            </div><!-- /card -->
+
+            <!-- ===== SESSION INACTIVITY & AUTO-LOCK POLICY CARD (ISO/IEC 25010) ===== -->
+            <div class="card border-0 shadow-sm p-4 bg-white mt-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                    <div>
+                        <h5 class="fw-bold mb-1 text-dark">
+                            <i class="bi bi-shield-lock-fill text-primary me-2"></i>Inactivity &amp; Auto-Lock Policy (ISO/IEC 25010)
+                        </h5>
+                        <p class="text-muted small mb-0">Enforce enterprise workstation privacy and session protection against unattended devices.</p>
+                    </div>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill font-monospace" style="font-size:0.78rem;">
+                        <i class="bi bi-shield-check me-1"></i>Two-Tier Security
+                    </span>
+                </div>
+
+                <form id="idleSettingsForm" method="POST" action="process/process.php" class="mt-2">
+                    <input type="hidden" name="action" value="update_idle_settings">
+                    <input type="hidden" name="return_tab" value="general">
+                    <?php if (function_exists('generate_csrf_token')): ?>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
+                    <?php endif; ?>
+
+                    <div class="row g-4">
+                        <!-- Left Column: Master Toggle & Overview -->
+                        <div class="col-12 col-lg-5">
+                            <div class="p-3 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
+                                <div>
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input fs-5" type="checkbox" role="switch" id="idleLockEnabledSwitch" name="idle_lock_enabled" value="1" <?= $cur_idle_enabled ? 'checked' : '' ?>>
+                                        <label class="form-check-label fw-bold text-dark pt-1 ms-2" for="idleLockEnabledSwitch">
+                                            Enable Inactivity Guard
+                                        </label>
+                                    </div>
+                                    <p class="text-secondary small mb-3">
+                                        When enabled, CIMS monitors user input across all open tabs. If no interaction is detected, it triggers the two-tier protection sequence:
+                                    </p>
+                                    <ul class="text-muted small ps-3 mb-0">
+                                        <li class="mb-2"><strong>Tier 1 (Soft Lock):</strong> Blurs screen to prevent shoulder-surfing, preserving unsaved form drafts until password is verified.</li>
+                                        <li><strong>Tier 2 (Hard Expiry):</strong> Destroys server session after extended absence with a 60-second warning countdown.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Threshold Dropdowns & Action Button -->
+                        <div class="col-12 col-lg-7">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-bold text-dark small" for="idleLockMinutesSelect">
+                                        <i class="bi bi-lock me-1 text-primary"></i>Tier 1: Soft Screen Lock
+                                    </label>
+                                    <select class="form-select" id="idleLockMinutesSelect" name="idle_lock_minutes" <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
+                                        <option value="5" <?= $cur_idle_lock == 5 ? 'selected' : '' ?>>5 minutes</option>
+                                        <option value="10" <?= $cur_idle_lock == 10 ? 'selected' : '' ?>>10 minutes</option>
+                                        <option value="15" <?= $cur_idle_lock == 15 ? 'selected' : '' ?>>15 minutes (Standard)</option>
+                                        <option value="30" <?= $cur_idle_lock == 30 ? 'selected' : '' ?>>30 minutes</option>
+                                        <option value="60" <?= $cur_idle_lock == 60 ? 'selected' : '' ?>>60 minutes</option>
+                                    </select>
+                                    <div class="form-text text-muted" style="font-size: 0.75rem;">Prompts for password; keeps drafts intact.</div>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-bold text-dark small" for="idleLogoutMinutesSelect">
+                                        <i class="bi bi-box-arrow-right me-1 text-danger"></i>Tier 2: Hard Auto-Logout
+                                    </label>
+                                    <select class="form-select" id="idleLogoutMinutesSelect" name="idle_logout_minutes" <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
+                                        <option value="15" <?= $cur_idle_logout == 15 ? 'selected' : '' ?>>15 minutes</option>
+                                        <option value="30" <?= $cur_idle_logout == 30 ? 'selected' : '' ?>>30 minutes (Recommended)</option>
+                                        <option value="60" <?= $cur_idle_logout == 60 ? 'selected' : '' ?>>60 minutes</option>
+                                        <option value="120" <?= $cur_idle_logout == 120 ? 'selected' : '' ?>>2 hours</option>
+                                    </select>
+                                    <div class="form-text text-muted" style="font-size: 0.75rem;">Fully terminates PHP session and redirects.</div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-2 border-top d-flex justify-content-end">
+                                <button type="submit" class="btn btn-brand fw-bold px-4 py-2 shadow-sm" id="saveIdleSettingsBtn">
+                                    <i class="bi bi-check2-circle me-1"></i>Save Inactivity Policy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
             </div><!-- /card -->
         </div>
 
@@ -2462,6 +2553,107 @@ include 'layout/header.php';
                     if (submitBtn) {
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = originalBtnText;
+                    }
+                }
+            });
+        }
+
+        // ========================================================
+        // INACTIVITY SETTINGS AJAX HANDLER (CIMS Standards)
+        // ========================================================
+        const idleEnabledSwitch = document.getElementById('idleLockEnabledSwitch');
+        const idleLockSelect = document.getElementById('idleLockMinutesSelect');
+        const idleLogoutSelect = document.getElementById('idleLogoutMinutesSelect');
+        const idleSettingsForm = document.getElementById('idleSettingsForm');
+        const saveIdleBtn = document.getElementById('saveIdleSettingsBtn');
+
+        if (idleEnabledSwitch && idleLockSelect && idleLogoutSelect) {
+            idleEnabledSwitch.addEventListener('change', () => {
+                const isChecked = idleEnabledSwitch.checked;
+                idleLockSelect.disabled = !isChecked;
+                idleLogoutSelect.disabled = !isChecked;
+            });
+        }
+
+        if (idleSettingsForm) {
+            idleSettingsForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const lockMin = parseInt(idleLockSelect ? idleLockSelect.value : '15', 10);
+                const logoutMin = parseInt(idleLogoutSelect ? idleLogoutSelect.value : '30', 10);
+
+                if (idleEnabledSwitch && idleEnabledSwitch.checked && lockMin >= logoutMin) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Validation Error',
+                            text: `Auto-Logout threshold (${logoutMin}m) must be greater than Screen Lock threshold (${lockMin}m).`
+                        });
+                    } else {
+                        alert(`Auto-Logout threshold (${logoutMin}m) must be greater than Screen Lock threshold (${lockMin}m).`);
+                    }
+                    return;
+                }
+
+                const originalBtnText = saveIdleBtn ? saveIdleBtn.innerHTML : 'Save Inactivity Policy';
+                if (saveIdleBtn) {
+                    saveIdleBtn.disabled = true;
+                    saveIdleBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving...';
+                }
+
+                try {
+                    const formData = new FormData(idleSettingsForm);
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+                    const response = await fetch('process/process.php', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-Token': csrfToken
+                        }
+                    });
+
+                    const result = await response.json();
+                    const isSuccess = (result.success === true || result.status === 'success');
+
+                    if (isSuccess) {
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Settings Saved!',
+                                text: result.message || 'Inactivity security policy updated successfully.',
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+                        } else {
+                            alert(result.message || 'Inactivity security policy updated successfully.');
+                        }
+
+                        // Update current window config in real-time
+                        if (window.cimsIdleConfig && result.data) {
+                            window.cimsIdleConfig.enabled = (result.data.idle_lock_enabled === '1');
+                            window.cimsIdleConfig.lockMinutes = parseInt(result.data.idle_lock_minutes, 10);
+                            window.cimsIdleConfig.logoutMinutes = parseInt(result.data.idle_logout_minutes, 10);
+                        }
+                    } else {
+                        throw new Error(result.message || 'Failed to save inactivity settings.');
+                    }
+                } catch (error) {
+                    console.error('Idle Settings AJAX Error:', error);
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: error.message || 'Failed to update security settings.'
+                        });
+                    } else {
+                        alert(error.message || 'Failed to update security settings.');
+                    }
+                } finally {
+                    if (saveIdleBtn) {
+                        saveIdleBtn.disabled = false;
+                        saveIdleBtn.innerHTML = originalBtnText;
                     }
                 }
             });
