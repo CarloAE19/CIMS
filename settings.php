@@ -102,8 +102,8 @@ try {
     if (isset($lc_settings['login_blur']) && $lc_settings['login_blur'] !== '')
         $cur_blur = (int) $lc_settings['login_blur'];
     $cur_idle_enabled = ($lc_settings['idle_lock_enabled'] ?? '1') === '1';
-    $cur_idle_lock = (int) ($lc_settings['idle_lock_minutes'] ?? 15);
-    $cur_idle_logout = (int) ($lc_settings['idle_logout_minutes'] ?? 30);
+    $cur_idle_lock = (float) ($lc_settings['idle_lock_minutes'] ?? 15);
+    $cur_idle_logout = (float) ($lc_settings['idle_logout_minutes'] ?? 30);
 } catch (Exception $e) {
 }
 $cur_blur = max(0, min(30, $cur_blur));
@@ -1005,6 +1005,9 @@ include 'layout/header.php';
                                         <i class="bi bi-lock me-1 text-primary"></i>Tier 1: Soft Screen Lock
                                     </label>
                                     <select class="form-select" id="idleLockMinutesSelect" name="idle_lock_minutes" <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
+                                        <option value="0.166" <?= abs($cur_idle_lock - 0.166) < 0.05 ? 'selected' : '' ?>>10 seconds (Testing)</option>
+                                        <option value="0.5" <?= abs($cur_idle_lock - 0.5) < 0.05 ? 'selected' : '' ?>>30 seconds (Testing)</option>
+                                        <option value="1" <?= $cur_idle_lock == 1 ? 'selected' : '' ?>>1 minute (Testing)</option>
                                         <option value="5" <?= $cur_idle_lock == 5 ? 'selected' : '' ?>>5 minutes</option>
                                         <option value="10" <?= $cur_idle_lock == 10 ? 'selected' : '' ?>>10 minutes</option>
                                         <option value="15" <?= $cur_idle_lock == 15 ? 'selected' : '' ?>>15 minutes (Standard)</option>
@@ -1019,6 +1022,8 @@ include 'layout/header.php';
                                         <i class="bi bi-box-arrow-right me-1 text-danger"></i>Tier 2: Hard Auto-Logout
                                     </label>
                                     <select class="form-select" id="idleLogoutMinutesSelect" name="idle_logout_minutes" <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
+                                        <option value="1" <?= $cur_idle_logout == 1 ? 'selected' : '' ?>>1 minute (Testing)</option>
+                                        <option value="2" <?= $cur_idle_logout == 2 ? 'selected' : '' ?>>2 minutes (Testing)</option>
                                         <option value="15" <?= $cur_idle_logout == 15 ? 'selected' : '' ?>>15 minutes</option>
                                         <option value="30" <?= $cur_idle_logout == 30 ? 'selected' : '' ?>>30 minutes (Recommended)</option>
                                         <option value="60" <?= $cur_idle_logout == 60 ? 'selected' : '' ?>>60 minutes</option>
@@ -1028,7 +1033,10 @@ include 'layout/header.php';
                                 </div>
                             </div>
 
-                            <div class="mt-4 pt-2 border-top d-flex justify-content-end">
+                            <div class="mt-4 pt-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <button type="button" class="btn btn-outline-primary fw-bold px-3 py-2 shadow-sm" onclick="if (typeof window.cimsLockScreenNow === 'function') { window.cimsLockScreenNow(); } else { alert('Screen lock module is ready. Refresh page if needed.'); }">
+                                    <i class="bi bi-play-circle-fill me-1"></i>Test Lock Screen Now
+                                </button>
                                 <button type="submit" class="btn btn-brand fw-bold px-4 py-2 shadow-sm" id="saveIdleSettingsBtn">
                                     <i class="bi bi-check2-circle me-1"></i>Save Inactivity Policy
                                 </button>
