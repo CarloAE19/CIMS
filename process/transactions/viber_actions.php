@@ -13,7 +13,8 @@ if ($action === 'log_viber_order_sent') {
     $po_id = $_POST['po_id'] ?? null;
     $po_no = $_POST['po_no'] ?? '';
     $supplier_id = $_POST['supplier_id'] ?? null;
-    $phone = $_POST['contact_number'] ?? '';
+    $rawPhone = $_POST['contact_number'] ?? '';
+    $normalizedPhone = normalizeViberPhone($rawPhone) ?? preg_replace('/[^0-9+]/', '', $rawPhone);
     $viberMessage = $_POST['message'] ?? '';
 
     if ($supplier_id && $po_id) {
@@ -38,7 +39,7 @@ if ($action === 'log_viber_order_sent') {
             INSERT INTO supplier_viber_logs (supplier_id, po_id, direction, sender_number, receiver_number, message_text, is_read)
             VALUES (?, ?, 'outbound', 'VIBER', ?, ?, 1)
         ");
-        $logStmt->execute([$supplier_id, $po_id, $phone ?: 'SYSTEM', "[Viber Dispatched]\n" . $viberMessage]);
+        $logStmt->execute([$supplier_id, $po_id, $normalizedPhone ?: 'SYSTEM', "[Viber Dispatched]\n" . $viberMessage]);
     } catch (PDOException $e) { }
 
     $notif = $pdo->prepare("INSERT INTO notifications (target_role, title, message) VALUES ('management', 'Viber Order Dispatched', ?)");
