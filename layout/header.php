@@ -56,6 +56,43 @@ if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null && $currentUserId > 0
     }
 }
 
+// Inactivity & Session Expiry Policy (ISO/IEC 25010 & Quality Standards)
+$idleLockEnabled = '1';
+$idleLockMinutes = 15;
+$idleLogoutMinutes = 30;
+
+if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null && function_exists('get_system_setting')) {
+    $idleLockEnabled = get_system_setting('idle_lock_enabled', '1');
+    $idleLockMinutes = (int) get_system_setting('idle_lock_minutes', 15);
+    $idleLogoutMinutes = (int) get_system_setting('idle_logout_minutes', 30);
+}
+if ($idleLockMinutes <= 0) $idleLockMinutes = 15;
+if ($idleLogoutMinutes <= 0) $idleLogoutMinutes = 30;
+
+// Server-side hard inactivity guard
+if ($currentUserId > 0) {
+    if ($idleLockEnabled === '1' && isset($_SESSION['last_activity'])) {
+        $elapsedTime = time() - $_SESSION['last_activity'];
+        $hardLimitSeconds = $idleLogoutMinutes * 60;
+        if ($elapsedTime > $hardLimitSeconds) {
+            $_SESSION = [];
+            if (ini_get("session.use_cookies")) {
+                $params = session_get_cookie_params();
+                setcookie(session_name(), '', time() - 42000,
+                    $params["path"], $params["domain"],
+                    $params["secure"], $params["httponly"]
+                );
+            }
+            session_destroy();
+            header("Location: login?timeout=1");
+            exit;
+        }
+    }
+    $_SESSION['last_activity'] = time();
+}
+
+$isScreenLockedSession = !empty($_SESSION['screen_locked']);
+
 $notifications = [];
 $unreadCount = 0;
 if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null) {
@@ -383,7 +420,7 @@ foreach ($notifications as $n) {
     </script>
 </head>
 
-<body>
+<body<?= $isScreenLockedSession ? ' class="cims-body-locked"' : '' ?>>
     <?php // include_once 'components/splash_screen.php'; ?>
     <div class="wrapper">
         <nav id="sidebar">
@@ -443,7 +480,7 @@ foreach ($notifications as $n) {
             </ul>
         </nav>
 
-        <div id="content">
+        <div id="content"<?= $isScreenLockedSession ? ' inert' : '' ?>>
             <nav class="navbar navbar-expand-lg top-navbar">
                 <div class="container-fluid px-0">
                     <button type="button" id="sidebarCollapse" class="btn btn-brand"><i
