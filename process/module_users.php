@@ -304,4 +304,93 @@ elseif ($action === 'change_password_modal') {
     echo json_encode(['status' => 'success', 'message' => 'Password updated successfully!']);
     exit;
 }
+
+elseif ($action === 'unlock_screen') {
+    $userId = $_SESSION['user_id'] ?? 0;
+    if (!$userId) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Session expired. Please log in again.']);
+        exit;
+    }
+
+    // 🛡️ CSRF Token Validation
+    $submittedToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (function_exists('validate_csrf_token') && !validate_csrf_token($submittedToken)) {
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Security token invalid or expired. Please refresh the page.']);
+        exit;
+    }
+
+    // 🛡️ Rate Limiting (Max 5 failed unlock attempts per 10 minutes per user)
+    $rlKey = 'unlock_screen_user_' . (int)$userId;
+    $rateLimit = check_rate_limit($rlKey, 5, 600, true);
+    if (!$rateLimit['allowed']) {
+        $mins = ceil($rateLimit['retry_after'] / 60);
+        echo json_encode([
+            'success' => false,
+            'status' => 'error',
+            'locked' => true,
+            'message' => "Too many incorrect unlock attempts. Please wait {$mins} minute(s) or log in again."
+        ]);
+        exit;
+    }
+
+    $password = $_POST['password'] ?? '';
+    if (empty($password)) {
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Please enter your password to unlock.']);
+        exit;
+    }
+
+    $stmt = $pdo->prepare("SELECT password, name, role, status FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user || (isset($user['status']) && strtolower($user['status']) === 'inactive')) {
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => 'Account is deactivated. Access revoked.']);
+        exit;
+    }
+
+    if (password_verify($password, $user['password'])) {
+        clear_rate_limit($rlKey, true);
+        unset($_SESSION['screen_locked']);
+        $_SESSION['last_activity'] = time();
+        echo json_encode([
+            'success' => true,
+            'status' => 'success',
+            'message' => 'Screen unlocked successfully.',
+            'data' => [
+                'user_name' => $user['name'],
+                'user_role' => $user['role']
+            ]
+        ]);
+    } else {
+        record_rate_limit_attempt($rlKey, true);
+        $newRl = check_rate_limit($rlKey, 5, 600, true);
+        $remaining = $newRl['remaining'];
+        $msg = ($remaining > 0)
+            ? "Incorrect password. {$remaining} attempt(s) remaining before temporary lockout."
+            : "Too many incorrect attempts. Screen locked for 10 minutes.";
+        echo json_encode(['success' => false, 'status' => 'error', 'message' => $msg]);
+    }
+    exit;
+}
+
+elseif ($action === 'lock_screen') {
+    $_SESSION['screen_locked'] = true;
+    echo json_encode([
+        'success' => true,
+        'status' => 'success',
+        'message' => 'Session screen marked locked on server.'
+    ]);
+    exit;
+}
+
+elseif ($action === 'ping_session') {
+    $_SESSION['last_activity'] = time();
+    echo json_encode([
+        'success' => true,
+        'status' => 'success',
+        'timestamp' => time()
+    ]);
+    exit;
+}
 ?>
