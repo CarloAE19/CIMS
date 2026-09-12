@@ -562,11 +562,11 @@ elseif ($action === 'add_project') {
     }
 
     $idleLockEnabled = (!empty($_POST['idle_lock_enabled']) && $_POST['idle_lock_enabled'] === '1') ? '1' : '0';
-    $idleLockMinutes = max(1, min(120, (int)($_POST['idle_lock_minutes'] ?? 15)));
-    $idleLogoutMinutes = max(5, min(240, (int)($_POST['idle_logout_minutes'] ?? 30)));
+    $idleLockMinutes = max(0.1, min(120, (float)($_POST['idle_lock_minutes'] ?? 15)));
+    $idleLogoutMinutes = max(0.2, min(240, (float)($_POST['idle_logout_minutes'] ?? 30)));
 
     if ($idleLockEnabled === '1' && $idleLockMinutes >= $idleLogoutMinutes) {
-        throw new Exception("Auto-Logout duration ({$idleLogoutMinutes} min) must be greater than Screen Lock duration ({$idleLockMinutes} min).");
+        throw new Exception("Auto-Logout duration must be greater than Screen Lock duration.");
     }
 
     $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
