@@ -16,8 +16,11 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $error = '';
+$infoMsg = '';
 if (!empty($_GET['deactivated'])) {
     $error = 'Your session has ended because your account was deactivated by an administrator.';
+} elseif (!empty($_GET['timeout'])) {
+    $infoMsg = 'Your session expired due to inactivity to protect company data. Please log in again to continue.';
 }
 $is_locked_out = false;
 $lockout_retry_after = 0;
@@ -248,6 +251,11 @@ $bg_scale = 1 + ($bg_blur * 0.006);
                         animation: pulseLogin 2s infinite ease-in-out;
                     }
                 </style>
+            <?php elseif (!empty($infoMsg)): ?>
+                <div class="login-error" id="phpInfoBlock" style="background: rgba(13, 110, 253, 0.08); border-color: rgba(13, 110, 253, 0.25); color: #0033cc;">
+                    <i class="bi bi-clock-history" style="font-size:1.1rem; color: #0d6efd; flex-shrink:0;"></i>
+                    <?= htmlspecialchars($infoMsg) ?>
+                </div>
             <?php elseif ($error && $error !== 'Special characters not allowed in username'): ?>
                 <div class="login-error" id="phpErrorBlock">
                     <i class="bi bi-exclamation-circle-fill"
