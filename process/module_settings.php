@@ -549,5 +549,52 @@ elseif ($action === 'add_project') {
     $targetRedirect = !empty($_POST['return_tab']) ? "../settings?tab=" . urlencode($_POST['return_tab']) : "../profile";
     header("Location: " . $targetRedirect);
     exit;
+
+// --- INACTIVITY & SESSION SECURITY POLICY (ISO/IEC 25010) ---
+} elseif ($action === 'update_idle_settings') {
+    if (!in_array($_SESSION['user_role'], ['admin', 'management'])) {
+        throw new Exception("Unauthorized. Only Admins and Management can change security settings.");
+    }
+
+    $submittedToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (function_exists('validate_csrf_token') && !validate_csrf_token($submittedToken)) {
+        throw new Exception("Security token invalid or expired. Please refresh the page.");
+    }
+
+    $idleLockEnabled = (!empty($_POST['idle_lock_enabled']) && $_POST['idle_lock_enabled'] === '1') ? '1' : '0';
+    $idleLockMinutes = max(1, min(120, (int)($_POST['idle_lock_minutes'] ?? 15)));
+    $idleLogoutMinutes = max(5, min(240, (int)($_POST['idle_logout_minutes'] ?? 30)));
+
+    if ($idleLockEnabled === '1' && $idleLockMinutes >= $idleLogoutMinutes) {
+        throw new Exception("Auto-Logout duration ({$idleLogoutMinutes} min) must be greater than Screen Lock duration ({$idleLockMinutes} min).");
+    }
+
+    $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+    $stmt->execute(['idle_lock_enabled', $idleLockEnabled, $idleLockEnabled]);
+    $stmt->execute(['idle_lock_minutes', (string)$idleLockMinutes, (string)$idleLockMinutes]);
+    $stmt->execute(['idle_logout_minutes', (string)$idleLogoutMinutes, (string)$idleLogoutMinutes]);
+
+    $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+              (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
+    if ($isAjax) {
+        echo json_encode([
+            'success' => true,
+            'status' => 'success',
+            'message' => 'Inactivity and session security settings updated successfully!',
+            'data' => [
+                'idle_lock_enabled' => $idleLockEnabled,
+                'idle_lock_minutes' => $idleLockMinutes,
+                'idle_logout_minutes' => $idleLogoutMinutes
+            ]
+        ]);
+        exit;
+    }
+
+    $_SESSION['message'] = "Inactivity and session security settings updated successfully!";
+    $_SESSION['msg_type'] = "success";
+    $targetRedirect = !empty($_POST['return_tab']) ? "../settings?tab=" . urlencode($_POST['return_tab']) : "../settings?tab=general";
+    header("Location: " . $targetRedirect);
+    exit;
 }
 ?>
