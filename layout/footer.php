@@ -11,6 +11,16 @@
 
 <script>
     window.cimsBasePath = '<?= rtrim(dirname($_SERVER['PHP_SELF']), "/\\") ?>';
+    window.cimsIdleConfig = {
+        enabled: <?= ($idleLockEnabled === '1') ? 'true' : 'false' ?>,
+        lockMinutes: <?= (int)($idleLockMinutes ?? 15) ?>,
+        logoutMinutes: <?= (int)($idleLogoutMinutes ?? 30) ?>,
+        userId: <?= (int)($currentUserId ?? 0) ?>,
+        userName: <?= json_encode($_SESSION['user_name'] ?? 'Staff') ?>,
+        userRole: <?= json_encode($currentUserRole ?? 'requestor') ?>,
+        userRoleLabel: <?= json_encode($userBadgeLabel ?? 'Staff') ?>,
+        isLocked: <?= !empty($isScreenLockedSession) ? 'true' : 'false' ?>
+    };
 </script>
 
 </div> <!-- End #content wrapper opened in header.php -->
@@ -29,6 +39,7 @@
 <script src="assets/js/pwa.js?v=<?= time() ?>"></script>
 <script src="assets/js/modals.js?v=<?= time() ?>"></script>
 <script src="assets/js/inventory.js?v=<?= time() ?>"></script>
+<script src="assets/js/idle-lock.js?v=<?= time() ?>"></script>
 
 <!-- Notification Scripts -->
 <script src="assets/js/notifications.js"></script>
@@ -597,6 +608,132 @@ document.addEventListener('DOMContentLoaded', () => {
                     </a>
                     <button type="button" class="btn btn-sm btn-secondary fw-bold" data-bs-dismiss="modal"
                         style="font-size: 0.75rem;">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL: TWO-TIER INACTIVITY LOCK SCREEN (ISO/IEC 25010)   -->
+<!-- ======================================================== -->
+<style>
+    /* Full-page shielding against DevTools / Inspect Elements */
+    body.cims-body-locked #content,
+    body.cims-body-locked #sidebar,
+    body.cims-body-locked .app-footer,
+    body.cims-body-locked .top-navbar {
+        filter: blur(28px) !important;
+        pointer-events: none !important;
+        user-select: none !important;
+        opacity: 0.12 !important;
+        transition: filter 0.25s ease, opacity 0.25s ease !important;
+    }
+    body.cims-body-locked #cims-chatbot-container {
+        display: none !important;
+    }
+
+    #cimsIdleLockModal {
+        z-index: 1080 !important;
+    }
+    #cimsIdleLockModal .modal-dialog {
+        max-width: 420px;
+    }
+    #cimsIdleLockModal .lock-glass-card {
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 20px;
+        box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(12px);
+    }
+    [data-bs-theme="dark"] #cimsIdleLockModal .lock-glass-card {
+        background: rgba(30, 41, 59, 0.96);
+        border: 1px solid rgba(71, 85, 105, 0.7);
+        color: #f8fafc;
+    }
+    .modal-backdrop.show:has(+ #cimsIdleLockModal),
+    .modal-backdrop.show {
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        background-color: rgba(15, 23, 42, 0.88) !important;
+    }
+    .lock-avatar-ring {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #0d6efd 0%, #0033cc 100%);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.2rem;
+        box-shadow: 0 8px 20px rgba(13, 110, 253, 0.35);
+        margin: 0 auto;
+    }
+    .countdown-badge-pulse {
+        animation: pulseAlert 1s infinite alternate;
+    }
+    @keyframes pulseAlert {
+        0% { transform: scale(1); }
+        100% { transform: scale(1.08); }
+    }
+</style>
+
+<div class="modal fade" id="cimsIdleLockModal" tabindex="-1" aria-labelledby="cimsIdleLockTitle" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content lock-glass-card p-3 p-sm-4 border-0">
+            <div class="modal-body text-center p-2">
+                <!-- User Avatar Ring -->
+                <div class="mb-3 position-relative d-inline-block">
+                    <div class="lock-avatar-ring">
+                        <i class="bi bi-shield-lock-fill"></i>
+                    </div>
+                </div>
+
+                <h4 class="fw-bold mb-1" id="cimsIdleLockTitle">Session Paused</h4>
+                <p class="text-muted small mb-3">Locked due to inactivity to protect data privacy. Enter your password to resume.</p>
+
+                <!-- Current User Details -->
+                <div class="d-inline-flex align-items-center gap-2 px-3 py-1 bg-light rounded-pill border mb-3">
+                    <i class="bi bi-person-circle text-primary"></i>
+                    <span class="fw-bold text-dark small"><?= htmlspecialchars($_SESSION['user_name'] ?? 'User') ?></span>
+                    <span class="badge <?= $userBadgeClass ?? 'bg-secondary' ?>" style="font-size: 0.7rem;"><?= htmlspecialchars($userBadgeLabel ?? 'Staff') ?></span>
+                </div>
+
+                <!-- Tier 2 Countdown Warning Banner -->
+                <div id="cimsIdleCountdownBanner" class="alert alert-warning py-2 px-3 mb-3 border-0 rounded-3 shadow-sm text-start d-none" role="alert">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="small fw-semibold">
+                            <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i> Auto-logout in:
+                        </div>
+                        <span id="cimsCountdownSeconds" class="badge bg-danger countdown-badge-pulse fs-6 px-2 py-1">60</span>
+                    </div>
+                </div>
+
+                <!-- Inline Error Alert -->
+                <div id="cimsUnlockErrorAlert" class="alert alert-danger py-2 px-3 mb-3 small text-start d-none border-0 shadow-sm" role="alert"></div>
+
+                <!-- Unlock Form -->
+                <form id="cimsIdleUnlockForm" autocomplete="off">
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-key-fill"></i></span>
+                            <input type="password" class="form-control border-start-0 border-end-0" id="cimsUnlockPassword" placeholder="Enter password to unlock" required autocomplete="current-password">
+                            <button class="btn btn-outline-secondary border-start-0 bg-white" type="button" id="cimsToggleUnlockPwd" title="Toggle password visibility">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm d-flex align-items-center justify-content-center" id="cimsUnlockSubmitBtn">
+                        <i class="bi bi-unlock-fill me-2"></i> Unlock Screen
+                    </button>
+                </form>
+
+                <div class="mt-3 pt-2 border-top">
+                    <a href="logout" class="text-decoration-none text-muted small d-inline-flex align-items-center">
+                        <i class="bi bi-box-arrow-right me-1"></i> Switch account or sign out
+                    </a>
                 </div>
             </div>
         </div>
