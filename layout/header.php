@@ -63,8 +63,8 @@ $idleLogoutMinutes = 30;
 
 if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null && function_exists('get_system_setting')) {
     $idleLockEnabled = get_system_setting('idle_lock_enabled', '1');
-    $idleLockMinutes = (int) get_system_setting('idle_lock_minutes', 15);
-    $idleLogoutMinutes = (int) get_system_setting('idle_logout_minutes', 30);
+    $idleLockMinutes = (float) get_system_setting('idle_lock_minutes', 15);
+    $idleLogoutMinutes = (float) get_system_setting('idle_logout_minutes', 30);
 }
 if ($idleLockMinutes <= 0) $idleLockMinutes = 15;
 if ($idleLogoutMinutes <= 0) $idleLogoutMinutes = 30;
