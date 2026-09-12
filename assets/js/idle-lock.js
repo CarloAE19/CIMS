@@ -1,6 +1,6 @@
 /**
  * CIMS Inactivity & Two-Tier Idle Management System
- * Conforms to ISO/IEC 25010, HCI & Enterprise Security Anti-Tamper Standards
+ * Conforms to ISO/IEC 25010, HCI & Enterprise Security Standards
  * 
  * Tier 1: Soft Screen Lock (Protects in-progress forms and confidential inventory data)
  * Tier 2: Hard Server Expiry / Auto-Logout (60s countdown warning + PHP session termination)
@@ -16,9 +16,12 @@
             return; // Inactivity lock disabled or not in an authenticated session
         }
 
-        const lockThresholdMs = Math.max(1, config.lockMinutes) * 60 * 1000;
-        const logoutThresholdMs = Math.max(5, config.logoutMinutes) * 60 * 1000;
-        const warningCountdownSeconds = 60;
+        const lockMinutesVal = parseFloat(config.lockMinutes) || 15;
+        const logoutMinutesVal = parseFloat(config.logoutMinutes) || 30;
+
+        const lockThresholdMs = Math.max(5000, Math.round(lockMinutesVal * 60 * 1000));
+        const logoutThresholdMs = Math.max(10000, Math.round(logoutMinutesVal * 60 * 1000));
+        const warningCountdownSeconds = Math.min(60, Math.max(5, Math.floor(logoutThresholdMs / 2000)));
 
         const STORAGE_KEY_ACTIVE = 'cims_last_active_' + config.userId;
         const STORAGE_KEY_LOCKED = 'cims_screen_locked_' + config.userId;
@@ -39,7 +42,7 @@
 
         // Initialize Bootstrap Modal with static backdrop
         if (lockModalEl && typeof bootstrap !== 'undefined') {
-            bsLockModal = new bootstrap.Modal(lockModalEl, {
+            bsLockModal = bootstrap.Modal.getOrCreateInstance(lockModalEl, {
                 backdrop: 'static',
                 keyboard: false
             });
@@ -70,6 +73,13 @@
         initAntiTamperGuard();
 
         /**
+         * Global Test Hook (allows testing lock screen instantly via UI button or console)
+         */
+        window.cimsLockScreenNow = function () {
+            triggerLockScreen();
+        };
+
+        /**
          * Record user activity across all open browser tabs
          */
         function recordActivity() {
@@ -88,7 +98,7 @@
         // Throttled activity event listeners
         let activityThrottleTimeout = null;
         function throttledActivityHandler() {
-            if (activityThrottleTimeout) return;
+            if (activityThrottleTimeout || isLocked) return;
             activityThrottleTimeout = setTimeout(() => {
                 activityThrottleTimeout = null;
                 recordActivity();
@@ -129,14 +139,14 @@
             // Tier 2: Check if Hard Logout Threshold is approaching or reached
             const timeUntilLogout = logoutThresholdMs - idleElapsed;
 
-            if (timeUntilLogout <= (warningCountdownSeconds * 1000)) {
+            if (isLocked && timeUntilLogout <= (warningCountdownSeconds * 1000)) {
                 const remainingSecs = Math.max(0, Math.ceil(timeUntilLogout / 1000));
                 showCountdownWarning(remainingSecs);
 
                 if (remainingSecs <= 0) {
                     performAutoLogout();
                 }
-            } else {
+            } else if (!isLocked) {
                 hideCountdownWarning();
             }
         }, 1000);
@@ -145,6 +155,7 @@
          * Tier 1: Soft Lock Screen Trigger
          */
         function triggerLockScreen() {
+            if (isLocked) return;
             isLocked = true;
             localStorage.setItem(STORAGE_KEY_LOCKED, '1');
 
@@ -181,34 +192,34 @@
         /**
          * Anti-Tamper Watchdog (MutationObserver & DevTools Guard)
          * Detects if an attacker deletes modal elements, strips backdrop,
-         * alters CSS visibility, or removes the inert attribute via Inspect Element.
+         * or removes the inert attribute via Inspect Element.
          */
         function initAntiTamperGuard() {
+            if (!lockModalEl) return;
+
+            // Detect if modal is closed via DOM methods or Bootstrap without unlocking
+            lockModalEl.addEventListener('hidden.bs.modal', () => {
+                if (isLocked && !isLegitimateUnlocking) {
+                    triggerTamperAlert('Lock screen modal was dismissed without unlocking.');
+                }
+            });
+
             const observer = new MutationObserver(() => {
                 if (!isLocked || isLegitimateUnlocking) return;
 
                 // Check 1: Was modal element deleted from the DOM?
-                if (lockModalEl && !document.body.contains(lockModalEl)) {
-                    triggerTamperAlert('Lock screen modal was deleted from DOM.');
+                if (!document.body.contains(lockModalEl)) {
+                    triggerTamperAlert('Lock screen modal element was deleted from DOM.');
                     return;
                 }
 
-                // Check 2: Was display: none, visibility: hidden, or opacity: 0 injected into modal?
-                if (lockModalEl) {
-                    const style = window.getComputedStyle(lockModalEl);
-                    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
-                        triggerTamperAlert('Lock screen visibility was altered.');
-                        return;
-                    }
-                }
-
-                // Check 3: Were security shielding classes removed from body?
+                // Check 2: Were security shielding classes removed from body?
                 if (!document.body.classList.contains('cims-body-locked')) {
                     triggerTamperAlert('Body shielding protection was removed.');
                     return;
                 }
 
-                // Check 4: Was inert stripped from content wrapper?
+                // Check 3: Was inert stripped from content wrapper?
                 const contentEl = document.getElementById('content');
                 if (contentEl && !contentEl.hasAttribute('inert')) {
                     triggerTamperAlert('Content inert protection attribute was stripped.');
@@ -218,9 +229,8 @@
 
             observer.observe(document.body, {
                 childList: true,
-                subtree: true,
                 attributes: true,
-                attributeFilter: ['class', 'style', 'inert']
+                attributeFilter: ['class', 'inert']
             });
         }
 
@@ -234,7 +244,7 @@
                         <i class="bi bi-shield-slash-fill"></i>
                     </div>
                     <h2 style="font-weight:700;margin-bottom:12px;">Security Tampering Detected</h2>
-                    <p style="color:#94a3b8;max-width:480px;line-height:1.6;margin-bottom:24px;">An unauthorized DOM inspection was detected while your workstation was locked. To protect confidential company records, your session has been terminated.</p>
+                    <p style="color:#94a3b8;max-width:480px;line-height:1.6;margin-bottom:24px;">An unauthorized DOM modification was detected while your workstation was locked. To protect confidential company records, your session has been terminated.</p>
                     <a href="${(window.cimsBasePath || '')}/logout.php?timeout=1" class="btn btn-primary px-4 py-2 fw-bold">Return to Login</a>
                 </div>
             `;
@@ -360,11 +370,15 @@
                     }
                 } catch (err) {
                     console.error('Unlock AJAX Error:', err);
-                    showUnlockError('Network or security verification error. Please try again.');
+                    showUnlockError('Verification error: ' + (err.message || 'Please check password and try again.'));
                 } finally {
                     if (unlockSubmitBtn) {
                         unlockSubmitBtn.disabled = false;
+                        unlockSubmitBtn.classList.remove('disabled');
                         unlockSubmitBtn.innerHTML = originalBtnText;
+                    }
+                    if (unlockForm) {
+                        delete unlockForm.dataset.submitting;
                     }
                 }
             });
