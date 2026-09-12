@@ -13,8 +13,8 @@
     window.cimsBasePath = '<?= rtrim(dirname($_SERVER['PHP_SELF']), "/\\") ?>';
     window.cimsIdleConfig = {
         enabled: <?= ($idleLockEnabled === '1') ? 'true' : 'false' ?>,
-        lockMinutes: <?= (int)($idleLockMinutes ?? 15) ?>,
-        logoutMinutes: <?= (int)($idleLogoutMinutes ?? 30) ?>,
+        lockMinutes: <?= (float)($idleLockMinutes ?? 15) ?>,
+        logoutMinutes: <?= (float)($idleLogoutMinutes ?? 30) ?>,
         userId: <?= (int)($currentUserId ?? 0) ?>,
         userName: <?= json_encode($_SESSION['user_name'] ?? 'Staff') ?>,
         userRole: <?= json_encode($currentUserRole ?? 'requestor') ?>,
