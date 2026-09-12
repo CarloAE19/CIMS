@@ -2,14 +2,26 @@
 require_once __DIR__ . '/../Connection/db.php';
 init_secure_session();
 
+// Initialize action & request method immediately
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
+
+// Check if the action is expected to return JSON (AJAX / Fetch request)
+$is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+           (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
+           (strpos($action, 'fetch_') === 0) ||
+           (in_array($action, ['live_sync', 'stock_in_scanned', 'verify_current_password', 'change_password_modal', 'unlock_screen', 'lock_screen', 'ping_session', 'update_idle_settings', 'submit_audit', 'create_backup', 'restore_backup', 'delete_backup', 'fetch_backups']));
+
+if ($is_ajax) {
+    ob_start();
+    header('Content-Type: application/json; charset=utf-8');
+}
+
 // === 1. GLOBAL AUTHENTICATION CHECK ===
 if (!isset($_SESSION['user_id'])) {
-    $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
-               (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
-               (isset($_POST['action']) && strpos($_POST['action'], 'fetch_') === 0);
-
     if ($is_ajax) {
-        header('Content-Type: application/json');
+        if (ob_get_length()) ob_clean();
+        header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['status' => 'error', 'message' => 'Unauthorized. Please log in again.']);
         exit;
     }
@@ -35,12 +47,9 @@ if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null) {
         }
         session_destroy();
 
-        $is_ajax_revoked = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
-                           (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
-                           (isset($_POST['action']) && strpos($_POST['action'], 'fetch_') === 0);
-
-        if ($is_ajax_revoked) {
-            header('Content-Type: application/json');
+        if ($is_ajax) {
+            if (ob_get_length()) ob_clean();
+            header('Content-Type: application/json; charset=utf-8');
             http_response_code(403);
             echo json_encode(['status' => 'error', 'message' => 'Your account has been deactivated. Access revoked.']);
             exit;
@@ -52,23 +61,15 @@ if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null) {
 }
 
 // === 2.5 SERVER-SIDE SCREEN LOCK GUARD (Zero-Trust Anti-Tamper) ===
-if (!empty($_SESSION['screen_locked']) && !in_array($action, ['unlock_screen', 'lock_screen', 'logout', 'ping_session'])) {
-    $is_ajax_locked = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
-                      (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
-                      (strpos($action, 'fetch_') === 0);
-
-    if ($is_ajax_locked) {
-        header('Content-Type: application/json');
-        http_response_code(423); // 423 Locked
-        echo json_encode([
-            'success' => false,
-            'status' => 'locked',
-            'message' => 'Screen is locked due to inactivity. Enter your password to unlock before making requests.'
-        ]);
-        exit;
-    }
-
-    header("Location: ../logout?timeout=1");
+if (!empty($_SESSION['screen_locked']) && !in_array($action, ['unlock_screen', 'lock_screen', 'logout', 'ping_session', 'fetch_combined_alerts'])) {
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(423); // 423 Locked
+    echo json_encode([
+        'success' => false,
+        'status' => 'locked',
+        'message' => 'Screen is locked due to inactivity. Enter your password to unlock before making requests.'
+    ]);
     exit;
 }
 
@@ -76,20 +77,6 @@ if (!empty($_SESSION['screen_locked']) && !in_array($action, ['unlock_screen', '
 require_once __DIR__ . '/../Connection/fcm_helper.php';
 
 // === 3. MODULE ROUTER ===
-$requestMethod = $_SERVER['REQUEST_METHOD'];
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
-
-// Check if the action is expected to return JSON (AJAX / Fetch request)
-$is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
-           (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
-           (strpos($action, 'fetch_') === 0) ||
-           (in_array($action, ['live_sync', 'stock_in_scanned', 'verify_current_password', 'change_password_modal', 'unlock_screen', 'lock_screen', 'ping_session', 'update_idle_settings', 'submit_audit', 'create_backup', 'restore_backup', 'delete_backup', 'fetch_backups']));
-
-if ($is_ajax) {
-    ob_start();
-    header('Content-Type: application/json');
-}
-
 if ($requestMethod === 'POST' || (strpos($action, 'fetch_') === 0 && !empty($action))) {
 
     // Anti-Double Submit / Rapid Spam Throttling on Mutating Actions
