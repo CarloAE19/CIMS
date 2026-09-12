@@ -115,6 +115,48 @@ if (!function_exists('validate_csrf_token')) {
     }
 }
 
+// Helper: Normalize Philippine phone numbers (09XX, +639XX, 639XX, 9XX) into canonical Viber E.164 (+639XXXXXXXXX)
+if (!function_exists('normalizeViberPhone')) {
+    function normalizeViberPhone(?string $phone): ?string
+    {
+        if (empty($phone)) return null;
+        $digits = preg_replace('/[^0-9]/', '', $phone);
+
+        // 09XXXXXXXXX (11 digits) -> +639XXXXXXXXX
+        if (str_starts_with($digits, '09') && strlen($digits) === 11) {
+            return '+63' . substr($digits, 1);
+        }
+        // 639XXXXXXXXX (12 digits) -> +639XXXXXXXXX
+        if (str_starts_with($digits, '639') && strlen($digits) === 12) {
+            return '+' . $digits;
+        }
+        // 9XXXXXXXXX (10 digits) -> +639XXXXXXXXX
+        if (str_starts_with($digits, '9') && strlen($digits) === 10) {
+            return '+63' . $digits;
+        }
+
+        return null;
+    }
+}
+
+// Helper: Format Philippine phone number for clean user-facing presentation (+63 9XX XXX XXXX or 09XX XXX XXXX)
+if (!function_exists('formatPhilippinePhone')) {
+    function formatPhilippinePhone(?string $phone, $preferInternational = true): string
+    {
+        $normalized = normalizeViberPhone($phone);
+        if ($normalized && strlen($normalized) === 13) {
+            if ($preferInternational) {
+                // +63 917 123 4567
+                return substr($normalized, 0, 3) . ' ' . substr($normalized, 3, 3) . ' ' . substr($normalized, 6, 3) . ' ' . substr($normalized, 9);
+            } else {
+                // 0917 123 4567
+                return '0' . substr($normalized, 3, 3) . ' ' . substr($normalized, 6, 3) . ' ' . substr($normalized, 9);
+            }
+        }
+        return $phone ?? '';
+    }
+}
+
 // 1. Load the secure environment variables (.env)
 if (!function_exists('loadEnv')) {
     function loadEnv($filePath)
