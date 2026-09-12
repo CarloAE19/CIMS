@@ -2808,6 +2808,50 @@ include 'layout/header.php';
     };
     window.initPoSearch();
 
+    // ==========================================
+    // VIBER PHONE NORMALIZER & MODAL LOGIC
+    // ==========================================
+    window.normalizeViberPhoneClient = function(phone) {
+        if (!phone) return null;
+        const digits = phone.replace(/[^0-9]/g, '');
+        if (digits.startsWith('09') && digits.length === 11) {
+            return '+63' + digits.substring(1);
+        }
+        if (digits.startsWith('639') && digits.length === 12) {
+            return '+' + digits;
+        }
+        if (digits.startsWith('9') && digits.length === 10) {
+            return '+63' + digits;
+        }
+        return null;
+    };
+
+    window.updatePoViberPhoneFeedback = function() {
+        const input = document.getElementById('viberPhone');
+        const badge = document.getElementById('poViberBadge');
+        const feedback = document.getElementById('viberPhoneFeedback');
+        if (!input || !badge || !feedback) return;
+
+        const val = input.value.trim();
+        if (!val) {
+            badge.classList.add('d-none');
+            feedback.className = 'small mt-1 text-muted';
+            feedback.innerHTML = '<i class="bi bi-info-circle me-1"></i>Accepts 09XX or +639XX format for direct Viber messaging.';
+            return;
+        }
+
+        const norm = window.normalizeViberPhoneClient(val);
+        if (norm) {
+            badge.classList.remove('d-none');
+            feedback.className = 'small mt-1 text-success fw-semibold';
+            feedback.innerHTML = '<i class="fa-brands fa-viber me-1" style="color: #7360f2;"></i>Viber Direct Link Ready: ' + norm;
+        } else {
+            badge.classList.add('d-none');
+            feedback.className = 'small mt-1 text-warning fw-semibold';
+            feedback.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Please enter a valid mobile number (e.g. 0917-123-4567 or +63 917 123 4567).';
+        }
+    };
+
     // Make sure openViberPreviewModal is attached to window
     window.openViberPreviewModal = async function (poId, poNo, supplierId, phone) {
         document.getElementById('viberPoId').value = poId;
@@ -2819,8 +2863,10 @@ include 'layout/header.php';
             supplierSelect.value = supplierId;
         }
 
+        window.updatePoViberPhoneFeedback();
+
         const tbody = document.getElementById('viberItemsBody');
-        tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div> Loading items...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div> Loading items...</td></tr>';
         document.getElementById('viberMessageText').value = 'Loading Viber message template...';
 
         var myModalEl = document.getElementById('viberPreviewModal');
@@ -2860,11 +2906,11 @@ include 'layout/header.php';
                 const msg = `Genetian Builders Construction PO: ${poNo}\nItems to purchase:\n${data.item_list}\nIf you have any concerns or clarifications text or email here`;
                 document.getElementById('viberMessageText').value = msg;
             } else {
-                tbody.innerHTML = '<tr><td colspan="2" class="text-center text-danger py-2">Failed to load items.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-2">Failed to load items.</td></tr>';
                 document.getElementById('viberMessageText').value = 'Error loading items template.';
             }
         } catch (e) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-center text-danger py-2">Network error.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-2">Network error.</td></tr>';
             document.getElementById('viberMessageText').value = 'Network error loading template.';
         }
     };
@@ -2876,26 +2922,45 @@ include 'layout/header.php';
 
         const poId = document.getElementById('viberPoId').value;
         const poNo = document.getElementById('viberPoNo').value;
-        const phone = document.getElementById('viberPhone').value || '';
+        const rawPhone = document.getElementById('viberPhone').value || '';
         const supplierId = document.getElementById('viberSupplierSelect').value;
         const message = document.getElementById('viberMessageText').value || '';
 
-        if (!phone || !message) {
-            alert("Please enter a valid phone number and message content.");
+        if (!rawPhone || !message) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Missing Details',
+                    text: 'Please enter a valid recipient phone number and message content.',
+                    confirmButtonColor: '#7360f2'
+                });
+            } else {
+                alert("Please enter a valid phone number and message content.");
+            }
             return;
         }
 
+        // Validate and normalize Philippine phone number
+        const cleanPhone = window.normalizeViberPhoneClient(rawPhone);
+        if (!cleanPhone) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Invalid Contact Number',
+                    text: 'Please enter a valid Philippine mobile number starting with 09 or +63 (e.g., 0917-123-4567 or +63 917 123 4567) so Viber can open the chat directly.',
+                    confirmButtonColor: '#7360f2'
+                });
+            } else {
+                alert("Please enter a valid Philippine mobile number starting with 09 or +63.");
+            }
+            document.getElementById('viberPhone').focus();
+            return;
+        }
+
+        // Prevent double submit and display loading spinner
         if (sendBtn) {
             sendBtn.disabled = true;
             sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Sending...';
-        }
-
-        let cleanPhone = phone.replace(/[^0-9]/g, '');
-        if (cleanPhone.startsWith('09')) {
-            cleanPhone = '63' + cleanPhone.substring(1);
-        }
-        if (!cleanPhone.startsWith('+')) {
-            cleanPhone = '+' + cleanPhone;
         }
 
         try {
@@ -2914,7 +2979,7 @@ include 'layout/header.php';
         formData.append('po_id', poId);
         formData.append('po_no', poNo);
         formData.append('supplier_id', supplierId);
-        formData.append('contact_number', phone);
+        formData.append('contact_number', cleanPhone);
         formData.append('message', message);
 
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -2944,7 +3009,17 @@ include 'layout/header.php';
         const viberModal = bootstrap.Modal.getInstance(myModalEl);
         if (viberModal) viberModal.hide();
 
-        alert("PO details copied to clipboard!\nOpening Viber Desktop for " + cleanPhone + "...\n\nPress Ctrl + V in Viber to paste your order.");
+        if (typeof Swal !== 'undefined') {
+            await Swal.fire({
+                icon: 'success',
+                title: 'Order Copied to Clipboard!',
+                html: `Opening Viber Desktop for <strong>${cleanPhone}</strong>...<br><br><small class="text-muted"><i class="bi bi-keyboard me-1"></i>Press <strong>Ctrl + V</strong> inside Viber to paste your order.</small>`,
+                timer: 2800,
+                showConfirmButton: false
+            });
+        } else {
+            alert("PO details copied to clipboard!\nOpening Viber Desktop for " + cleanPhone + "...\n\nPress Ctrl + V in Viber to paste your order.");
+        }
 
         window.location.href = "viber://chat?number=" + encodeURIComponent(cleanPhone);
     };
@@ -3292,6 +3367,32 @@ include 'layout/header.php';
                 const selectedOption = this.options[this.selectedIndex];
                 const phone = selectedOption.getAttribute('data-phone');
                 document.getElementById('viberPhone').value = phone || '';
+                if (typeof window.updatePoViberPhoneFeedback === 'function') {
+                    window.updatePoViberPhoneFeedback();
+                }
+            });
+        }
+
+        const viberPhoneInput = document.getElementById('viberPhone');
+        if (viberPhoneInput) {
+            viberPhoneInput.addEventListener('input', function() {
+                if (typeof window.updatePoViberPhoneFeedback === 'function') {
+                    window.updatePoViberPhoneFeedback();
+                }
+            });
+            viberPhoneInput.addEventListener('blur', function() {
+                if (typeof window.updatePoViberPhoneFeedback === 'function') {
+                    window.updatePoViberPhoneFeedback();
+                }
+            });
+        }
+
+        const viberModalEl = document.getElementById('viberPreviewModal');
+        if (viberModalEl) {
+            viberModalEl.addEventListener('hidden.bs.modal', function () {
+                if (typeof window.updatePoViberPhoneFeedback === 'function') {
+                    window.updatePoViberPhoneFeedback();
+                }
             });
         }
 
