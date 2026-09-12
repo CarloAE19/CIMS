@@ -50,6 +50,27 @@ if (!function_exists('time_elapsed_string')) {
     }
 }
 
+// Helper: Get system setting from database with fallback default
+if (!function_exists('get_system_setting')) {
+    function get_system_setting($key, $default = null)
+    {
+        global $pdo;
+        if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null) {
+            try {
+                $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+                $stmt->execute([$key]);
+                $val = $stmt->fetchColumn();
+                if ($val !== false && $val !== null) {
+                    return $val;
+                }
+            } catch (Throwable $e) {
+                // Return default on error
+            }
+        }
+        return $default;
+    }
+}
+
 // Helper: Generate or retrieve active cryptographically secure CSRF Token with TTL expiration (2 hours)
 if (!function_exists('generate_csrf_token')) {
     function generate_csrf_token($maxLifetime = 7200)
@@ -390,6 +411,11 @@ try {
     // Seed default blur intensity (12px) if not exists
     $stmt = $pdo->prepare("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('login_blur', '12')");
     $stmt->execute();
+
+    // Seed default two-tier inactivity security settings (ISO/IEC 25010)
+    $pdo->prepare("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('idle_lock_enabled', '1')")->execute();
+    $pdo->prepare("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('idle_lock_minutes', '15')")->execute();
+    $pdo->prepare("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('idle_logout_minutes', '30')")->execute();
 
     // 15. Create Categories Table
     $pdo->exec("
