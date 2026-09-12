@@ -497,13 +497,20 @@ $approvedRS = $pdo->query("
                             <input type="hidden" id="viberPoId">
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label fw-bold small text-muted text-uppercase">Recipient Phone
-                                Number</label>
+                            <label class="form-label fw-bold small text-muted text-uppercase d-flex justify-content-between align-items-center mb-1">
+                                <span>Recipient Phone Number <span class="text-danger">*</span></span>
+                                <span id="poViberBadge" class="badge bg-purple d-none shadow-sm" style="font-size: 0.68rem;">
+                                    <i class="fa-brands fa-viber me-1"></i>Viber Ready
+                                </span>
+                            </label>
                             <div class="input-group shadow-sm">
                                 <span class="input-group-text bg-white text-muted"><i
                                         class="bi bi-telephone-fill"></i></span>
                                 <input type="text" id="viberPhone" class="form-control fw-bold bg-white text-dark"
-                                    placeholder="Enter recipient phone number..." required>
+                                    placeholder="e.g. 0917-123-4567 or +63 917 123 4567" required>
+                            </div>
+                            <div id="viberPhoneFeedback" class="small mt-1 text-muted" style="font-size: 0.75rem;">
+                                <i class="bi bi-info-circle me-1"></i>Accepts 09XX or +639XX format for direct Viber messaging.
                             </div>
                         </div>
                     </div>
