@@ -563,9 +563,11 @@ elseif ($action === 'add_project') {
 
     $idleLockEnabled = (!empty($_POST['idle_lock_enabled']) && $_POST['idle_lock_enabled'] === '1') ? '1' : '0';
     $idleLockMinutes = max(0.1, min(120, (float)($_POST['idle_lock_minutes'] ?? 15)));
-    $idleLogoutMinutes = max(0.2, min(240, (float)($_POST['idle_logout_minutes'] ?? 30)));
+    $idleLogoutMinutes = (float)($_POST['idle_logout_minutes'] ?? 30);
+    if ($idleLogoutMinutes < 0) $idleLogoutMinutes = 0;
+    if ($idleLogoutMinutes > 240) $idleLogoutMinutes = 240;
 
-    if ($idleLockEnabled === '1' && $idleLockMinutes >= $idleLogoutMinutes) {
+    if ($idleLockEnabled === '1' && $idleLogoutMinutes > 0 && $idleLockMinutes >= $idleLogoutMinutes) {
         throw new Exception("Auto-Logout duration must be greater than Screen Lock duration.");
     }
 
