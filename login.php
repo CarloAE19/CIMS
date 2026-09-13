@@ -118,6 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_locked_out) {
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['user_name'] = $user['name'];
                     $_SESSION['user_role'] = $user['role'];
+                    $_SESSION['last_activity'] = time();
+                    unset($_SESSION['screen_locked']);
+                    $_SESSION['fresh_login'] = true;
                     redirectUserByRole($user['role']);
                 }
             } else {
@@ -396,6 +399,16 @@ $bg_scale = 1 + ($bg_blur * 0.006);
 
     <!-- Login Scripts -->
     <script src="assets/js/login.js?v=<?= time() ?>"></script>
+    <script>
+        // Clean up stale idle lock and active tracker keys from prior sessions
+        try {
+            Object.keys(localStorage).forEach(function (k) {
+                if (k.indexOf('cims_screen_locked_') === 0 || k.indexOf('cims_last_active_') === 0) {
+                    localStorage.removeItem(k);
+                }
+            });
+        } catch (e) {}
+    </script>
 
     <?php if ($is_locked_out && $lockout_retry_after > 0): ?>
         <script>
