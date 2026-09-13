@@ -19,7 +19,8 @@
         userName: <?= json_encode($_SESSION['user_name'] ?? 'Staff') ?>,
         userRole: <?= json_encode($currentUserRole ?? 'requestor') ?>,
         userRoleLabel: <?= json_encode($userBadgeLabel ?? 'Staff') ?>,
-        isLocked: <?= !empty($isScreenLockedSession) ? 'true' : 'false' ?>
+        isLocked: <?= !empty($isScreenLockedSession) ? 'true' : 'false' ?>,
+        freshLogin: <?= !empty($isFreshLogin) ? 'true' : 'false' ?>
     };
 </script>
 
@@ -697,7 +698,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="d-inline-flex align-items-center gap-2 px-3 py-1 bg-light rounded-pill border mb-3">
                     <i class="bi bi-person-circle text-primary"></i>
                     <span class="fw-bold text-dark small"><?= htmlspecialchars($_SESSION['user_name'] ?? 'User') ?></span>
-                    <span class="badge <?= $userBadgeClass ?? 'bg-secondary' ?>" style="font-size: 0.7rem;"><?= htmlspecialchars($userBadgeLabel ?? 'Staff') ?></span>
                 </div>
 
                 <!-- Tier 2 Countdown Warning Banner -->
