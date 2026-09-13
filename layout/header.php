@@ -67,7 +67,7 @@ if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null && function_exists('g
     $idleLogoutMinutes = (float) get_system_setting('idle_logout_minutes', 30);
 }
 if ($idleLockMinutes <= 0) $idleLockMinutes = 15;
-if ($idleLogoutMinutes <= 0) $idleLogoutMinutes = 30;
+if ($idleLogoutMinutes < 0) $idleLogoutMinutes = 0;
 
 $isFreshLogin = !empty($_SESSION['fresh_login']);
 if ($isFreshLogin) {
@@ -78,7 +78,7 @@ if ($isFreshLogin) {
 
 // Server-side hard inactivity guard
 if ($currentUserId > 0) {
-    if (!$isFreshLogin && $idleLockEnabled === '1' && isset($_SESSION['last_activity'])) {
+    if (!$isFreshLogin && $idleLockEnabled === '1' && $idleLogoutMinutes > 0 && isset($_SESSION['last_activity'])) {
         $elapsedTime = time() - $_SESSION['last_activity'];
         $hardLimitSeconds = $idleLogoutMinutes * 60;
         if ($elapsedTime > $hardLimitSeconds) {
