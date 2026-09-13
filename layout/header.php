@@ -69,9 +69,16 @@ if (!defined('DB_OFFLINE') && isset($pdo) && $pdo !== null && function_exists('g
 if ($idleLockMinutes <= 0) $idleLockMinutes = 15;
 if ($idleLogoutMinutes <= 0) $idleLogoutMinutes = 30;
 
+$isFreshLogin = !empty($_SESSION['fresh_login']);
+if ($isFreshLogin) {
+    unset($_SESSION['fresh_login']);
+    unset($_SESSION['screen_locked']);
+    $_SESSION['last_activity'] = time();
+}
+
 // Server-side hard inactivity guard
 if ($currentUserId > 0) {
-    if ($idleLockEnabled === '1' && isset($_SESSION['last_activity'])) {
+    if (!$isFreshLogin && $idleLockEnabled === '1' && isset($_SESSION['last_activity'])) {
         $elapsedTime = time() - $_SESSION['last_activity'];
         $hardLimitSeconds = $idleLogoutMinutes * 60;
         if ($elapsedTime > $hardLimitSeconds) {
@@ -91,7 +98,7 @@ if ($currentUserId > 0) {
     $_SESSION['last_activity'] = time();
 }
 
-$isScreenLockedSession = !empty($_SESSION['screen_locked']);
+$isScreenLockedSession = !$isFreshLogin && !empty($_SESSION['screen_locked']);
 
 $notifications = [];
 $unreadCount = 0;
