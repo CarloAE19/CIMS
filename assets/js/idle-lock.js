@@ -59,13 +59,21 @@
             });
         }
 
-        // Initialize active timestamp
-        if (!localStorage.getItem(STORAGE_KEY_ACTIVE)) {
-            localStorage.setItem(STORAGE_KEY_ACTIVE, Date.now().toString());
-        }
+        const now = Date.now();
+        const storedActiveStr = localStorage.getItem(STORAGE_KEY_ACTIVE);
+        const storedActiveTime = storedActiveStr ? parseInt(storedActiveStr, 10) : 0;
+        const storedIsLocked = localStorage.getItem(STORAGE_KEY_LOCKED) === '1';
 
-        // Check if server or storage flagged session as locked
-        if (config.isLocked || localStorage.getItem(STORAGE_KEY_LOCKED) === '1') {
+        // Check if this is a fresh login OR if stored active time is stale (older than logout threshold)
+        const isStale = !storedActiveTime || ((now - storedActiveTime) > logoutThresholdMs);
+
+        if (config.freshLogin || isStale) {
+            // Fresh login or stale previous session from hours/days ago:
+            // Reset active timestamp to right now and reset lock state
+            localStorage.setItem(STORAGE_KEY_ACTIVE, now.toString());
+            localStorage.setItem(STORAGE_KEY_LOCKED, '0');
+            isLocked = false;
+        } else if (config.isLocked || storedIsLocked) {
             triggerLockScreen();
         }
 
@@ -245,7 +253,7 @@
                     </div>
                     <h2 style="font-weight:700;margin-bottom:12px;">Security Tampering Detected</h2>
                     <p style="color:#94a3b8;max-width:480px;line-height:1.6;margin-bottom:24px;">An unauthorized DOM modification was detected while your workstation was locked. To protect confidential company records, your session has been terminated.</p>
-                    <a href="${(window.cimsBasePath || '')}/logout.php?timeout=1" class="btn btn-primary px-4 py-2 fw-bold">Return to Login</a>
+                    <a href="${(window.cimsBasePath || '')}/logout?timeout=1" class="btn btn-primary px-4 py-2 fw-bold">Return to Login</a>
                 </div>
             `;
 
@@ -254,7 +262,7 @@
 
             // Force hard session destroy and redirect
             const basePath = window.cimsBasePath || '';
-            window.location.href = basePath + '/logout.php?timeout=1';
+            window.location.href = basePath + '/logout?timeout=1';
         }
 
         /**
@@ -279,7 +287,7 @@
             localStorage.removeItem(STORAGE_KEY_ACTIVE);
 
             const basePath = window.cimsBasePath || '';
-            window.location.href = basePath + '/logout.php?timeout=1';
+            window.location.href = basePath + '/logout?timeout=1';
         }
 
         /**
