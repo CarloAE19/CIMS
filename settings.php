@@ -959,13 +959,11 @@ include 'layout/header.php';
                 <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
                     <div>
                         <h5 class="fw-bold mb-1 text-dark">
-                            <i class="bi bi-shield-lock-fill text-primary me-2"></i>Inactivity &amp; Auto-Lock Policy (ISO/IEC 25010)
+                            <i class="bi bi-shield-lock-fill text-primary me-2"></i>Inactivity &amp; Auto-Lock Policy
                         </h5>
-                        <p class="text-muted small mb-0">Enforce enterprise workstation privacy and session protection against unattended devices.</p>
+                        <p class="text-muted small mb-0">Enforce enterprise workstation privacy and session protection
+                            against unattended devices.</p>
                     </div>
-                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill font-monospace" style="font-size:0.78rem;">
-                        <i class="bi bi-shield-check me-1"></i>Two-Tier Security
-                    </span>
                 </div>
 
                 <form id="idleSettingsForm" method="POST" action="process/process.php" class="mt-2">
@@ -981,17 +979,24 @@ include 'layout/header.php';
                             <div class="p-3 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
                                 <div>
                                     <div class="form-check form-switch mb-3">
-                                        <input class="form-check-input fs-5" type="checkbox" role="switch" id="idleLockEnabledSwitch" name="idle_lock_enabled" value="1" <?= $cur_idle_enabled ? 'checked' : '' ?>>
-                                        <label class="form-check-label fw-bold text-dark pt-1 ms-2" for="idleLockEnabledSwitch">
+                                        <input class="form-check-input fs-5" type="checkbox" role="switch"
+                                            id="idleLockEnabledSwitch" name="idle_lock_enabled" value="1"
+                                            <?= $cur_idle_enabled ? 'checked' : '' ?>>
+                                        <label class="form-check-label fw-bold text-dark pt-1 ms-2"
+                                            for="idleLockEnabledSwitch">
                                             Enable Inactivity Guard
                                         </label>
                                     </div>
                                     <p class="text-secondary small mb-3">
-                                        When enabled, CIMS monitors user input across all open tabs. If no interaction is detected, it triggers the two-tier protection sequence:
+                                        When enabled, CIMS monitors user input across all open tabs. If no interaction
+                                        is detected, it triggers the two-tier protection sequence:
                                     </p>
                                     <ul class="text-muted small ps-3 mb-0">
-                                        <li class="mb-2"><strong>Tier 1 (Soft Lock):</strong> Blurs screen to prevent shoulder-surfing, preserving unsaved form drafts until password is verified.</li>
-                                        <li><strong>Tier 2 (Hard Expiry):</strong> Destroys server session after extended absence with a 60-second warning countdown.</li>
+                                        <li class="mb-2"><strong>Tier 1 (Soft Lock):</strong> Blurs screen to prevent
+                                            shoulder-surfing, preserving unsaved form drafts until password is verified.
+                                        </li>
+                                        <li><strong>Tier 2 (Hard Expiry):</strong> Destroys server session after
+                                            extended absence with a 60-second warning countdown.</li>
                                     </ul>
                                 </div>
                             </div>
@@ -1004,40 +1009,59 @@ include 'layout/header.php';
                                     <label class="form-label fw-bold text-dark small" for="idleLockMinutesSelect">
                                         <i class="bi bi-lock me-1 text-primary"></i>Tier 1: Soft Screen Lock
                                     </label>
-                                    <select class="form-select" id="idleLockMinutesSelect" name="idle_lock_minutes" <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
+                                    <select class="form-select" id="idleLockMinutesSelect" name="idle_lock_minutes"
+                                        <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
                                         <option value="0.166" <?= abs($cur_idle_lock - 0.166) < 0.05 ? 'selected' : '' ?>>10 seconds (Testing)</option>
-                                        <option value="0.5" <?= abs($cur_idle_lock - 0.5) < 0.05 ? 'selected' : '' ?>>30 seconds (Testing)</option>
-                                        <option value="1" <?= $cur_idle_lock == 1 ? 'selected' : '' ?>>1 minute (Testing)</option>
+                                        <option value="0.5" <?= abs($cur_idle_lock - 0.5) < 0.05 ? 'selected' : '' ?>>30
+                                            seconds (Testing)</option>
+                                        <option value="1" <?= $cur_idle_lock == 1 ? 'selected' : '' ?>>1 minute (Testing)
+                                        </option>
                                         <option value="5" <?= $cur_idle_lock == 5 ? 'selected' : '' ?>>5 minutes</option>
-                                        <option value="10" <?= $cur_idle_lock == 10 ? 'selected' : '' ?>>10 minutes</option>
-                                        <option value="15" <?= $cur_idle_lock == 15 ? 'selected' : '' ?>>15 minutes (Standard)</option>
-                                        <option value="30" <?= $cur_idle_lock == 30 ? 'selected' : '' ?>>30 minutes</option>
-                                        <option value="60" <?= $cur_idle_lock == 60 ? 'selected' : '' ?>>60 minutes</option>
+                                        <option value="10" <?= $cur_idle_lock == 10 ? 'selected' : '' ?>>10 minutes
+                                        </option>
+                                        <option value="15" <?= $cur_idle_lock == 15 ? 'selected' : '' ?>>15 minutes
+                                            (Standard)</option>
+                                        <option value="30" <?= $cur_idle_lock == 30 ? 'selected' : '' ?>>30 minutes
+                                        </option>
+                                        <option value="60" <?= $cur_idle_lock == 60 ? 'selected' : '' ?>>60 minutes
+                                        </option>
                                     </select>
-                                    <div class="form-text text-muted" style="font-size: 0.75rem;">Prompts for password; keeps drafts intact.</div>
+                                    <div class="form-text text-muted" style="font-size: 0.75rem;">Prompts for password;
+                                        keeps drafts intact.</div>
                                 </div>
 
                                 <div class="col-12 col-md-6">
                                     <label class="form-label fw-bold text-dark small" for="idleLogoutMinutesSelect">
                                         <i class="bi bi-box-arrow-right me-1 text-danger"></i>Tier 2: Hard Auto-Logout
                                     </label>
-                                    <select class="form-select" id="idleLogoutMinutesSelect" name="idle_logout_minutes" <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
-                                        <option value="1" <?= $cur_idle_logout == 1 ? 'selected' : '' ?>>1 minute (Testing)</option>
-                                        <option value="2" <?= $cur_idle_logout == 2 ? 'selected' : '' ?>>2 minutes (Testing)</option>
-                                        <option value="15" <?= $cur_idle_logout == 15 ? 'selected' : '' ?>>15 minutes</option>
-                                        <option value="30" <?= $cur_idle_logout == 30 ? 'selected' : '' ?>>30 minutes (Recommended)</option>
-                                        <option value="60" <?= $cur_idle_logout == 60 ? 'selected' : '' ?>>60 minutes</option>
-                                        <option value="120" <?= $cur_idle_logout == 120 ? 'selected' : '' ?>>2 hours</option>
+                                    <select class="form-select" id="idleLogoutMinutesSelect" name="idle_logout_minutes"
+                                        <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
+                                        <option value="1" <?= $cur_idle_logout == 1 ? 'selected' : '' ?>>1 minute (Testing)
+                                        </option>
+                                        <option value="2" <?= $cur_idle_logout == 2 ? 'selected' : '' ?>>2 minutes
+                                            (Testing)</option>
+                                        <option value="15" <?= $cur_idle_logout == 15 ? 'selected' : '' ?>>15 minutes
+                                        </option>
+                                        <option value="30" <?= $cur_idle_logout == 30 ? 'selected' : '' ?>>30 minutes
+                                            (Recommended)</option>
+                                        <option value="60" <?= $cur_idle_logout == 60 ? 'selected' : '' ?>>60 minutes
+                                        </option>
+                                        <option value="120" <?= $cur_idle_logout == 120 ? 'selected' : '' ?>>2 hours
+                                        </option>
                                     </select>
-                                    <div class="form-text text-muted" style="font-size: 0.75rem;">Fully terminates PHP session and redirects.</div>
+                                    <div class="form-text text-muted" style="font-size: 0.75rem;">Fully terminates PHP
+                                        session and redirects.</div>
                                 </div>
                             </div>
 
-                            <div class="mt-4 pt-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                <button type="button" class="btn btn-outline-primary fw-bold px-3 py-2 shadow-sm" onclick="if (typeof window.cimsLockScreenNow === 'function') { window.cimsLockScreenNow(); } else { alert('Screen lock module is ready. Refresh page if needed.'); }">
+                            <div
+                                class="mt-4 pt-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <button type="button" class="btn btn-outline-primary fw-bold px-3 py-2 shadow-sm"
+                                    onclick="if (typeof window.cimsLockScreenNow === 'function') { window.cimsLockScreenNow(); } else { alert('Screen lock module is ready. Refresh page if needed.'); }">
                                     <i class="bi bi-play-circle-fill me-1"></i>Test Lock Screen Now
                                 </button>
-                                <button type="submit" class="btn btn-brand fw-bold px-4 py-2 shadow-sm" id="saveIdleSettingsBtn">
+                                <button type="submit" class="btn btn-brand fw-bold px-4 py-2 shadow-sm"
+                                    id="saveIdleSettingsBtn">
                                     <i class="bi bi-check2-circle me-1"></i>Save Inactivity Policy
                                 </button>
                             </div>
