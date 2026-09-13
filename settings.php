@@ -1036,6 +1036,7 @@ include 'layout/header.php';
                                     </label>
                                     <select class="form-select" id="idleLogoutMinutesSelect" name="idle_logout_minutes"
                                         <?= !$cur_idle_enabled ? 'disabled' : '' ?>>
+                                        <option value="0" <?= $cur_idle_logout == 0 ? 'selected' : '' ?>>Off / Disabled (Soft Lock Only)</option>
                                         <option value="1" <?= $cur_idle_logout == 1 ? 'selected' : '' ?>>1 minute (Testing)
                                         </option>
                                         <option value="2" <?= $cur_idle_logout == 2 ? 'selected' : '' ?>>2 minutes
@@ -2611,10 +2612,10 @@ include 'layout/header.php';
             idleSettingsForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
 
-                const lockMin = parseInt(idleLockSelect ? idleLockSelect.value : '15', 10);
-                const logoutMin = parseInt(idleLogoutSelect ? idleLogoutSelect.value : '30', 10);
+                const lockMin = parseFloat(idleLockSelect ? idleLockSelect.value : '15');
+                const logoutMin = parseFloat(idleLogoutSelect ? idleLogoutSelect.value : '30');
 
-                if (idleEnabledSwitch && idleEnabledSwitch.checked && lockMin >= logoutMin) {
+                if (idleEnabledSwitch && idleEnabledSwitch.checked && logoutMin > 0 && lockMin >= logoutMin) {
                     if (typeof Swal !== 'undefined') {
                         Swal.fire({
                             icon: 'warning',
