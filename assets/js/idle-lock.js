@@ -17,11 +17,12 @@
         }
 
         const lockMinutesVal = parseFloat(config.lockMinutes) || 15;
-        const logoutMinutesVal = parseFloat(config.logoutMinutes) || 30;
+        const logoutMinutesVal = parseFloat(config.logoutMinutes);
+        const isLogoutEnabled = !isNaN(logoutMinutesVal) && logoutMinutesVal > 0;
 
         const lockThresholdMs = Math.max(5000, Math.round(lockMinutesVal * 60 * 1000));
-        const logoutThresholdMs = Math.max(10000, Math.round(logoutMinutesVal * 60 * 1000));
-        const warningCountdownSeconds = Math.min(60, Math.max(5, Math.floor(logoutThresholdMs / 2000)));
+        const logoutThresholdMs = isLogoutEnabled ? Math.max(10000, Math.round(logoutMinutesVal * 60 * 1000)) : 0;
+        const warningCountdownSeconds = isLogoutEnabled ? Math.min(60, Math.max(5, Math.floor(logoutThresholdMs / 2000))) : 0;
 
         const STORAGE_KEY_ACTIVE = 'cims_last_active_' + config.userId;
         const STORAGE_KEY_LOCKED = 'cims_screen_locked_' + config.userId;
@@ -65,7 +66,7 @@
         const storedIsLocked = localStorage.getItem(STORAGE_KEY_LOCKED) === '1';
 
         // Check if this is a fresh login OR if stored active time is stale (older than logout threshold)
-        const isStale = !storedActiveTime || ((now - storedActiveTime) > logoutThresholdMs);
+        const isStale = isLogoutEnabled && (!storedActiveTime || ((now - storedActiveTime) > logoutThresholdMs));
 
         if (config.freshLogin || isStale) {
             // Fresh login or stale previous session from hours/days ago:
@@ -144,18 +145,27 @@
                 triggerLockScreen();
             }
 
-            // Tier 2: Check if Hard Logout Threshold is approaching or reached
-            const timeUntilLogout = logoutThresholdMs - idleElapsed;
+            // Tier 2: Check if Hard Logout Threshold is enabled and approaching/reached
+            if (isLogoutEnabled) {
+                const timeUntilLogout = logoutThresholdMs - idleElapsed;
 
-            if (isLocked && timeUntilLogout <= (warningCountdownSeconds * 1000)) {
-                const remainingSecs = Math.max(0, Math.ceil(timeUntilLogout / 1000));
-                showCountdownWarning(remainingSecs);
+                if (isLocked && timeUntilLogout <= (warningCountdownSeconds * 1000)) {
+                    const remainingSecs = Math.max(0, Math.ceil(timeUntilLogout / 1000));
+                    showCountdownWarning(remainingSecs);
 
-                if (remainingSecs <= 0) {
-                    performAutoLogout();
+                    if (remainingSecs <= 0) {
+                        performAutoLogout();
+                    }
+                } else if (!isLocked) {
+                    hideCountdownWarning();
                 }
-            } else if (!isLocked) {
+            } else {
                 hideCountdownWarning();
+                // If Tier 2 is disabled and screen is locked, periodically keep session alive
+                if (isLocked && (now - lastPingTime > 10 * 60 * 1000)) {
+                    lastPingTime = now;
+                    pingSession();
+                }
             }
         }, 1000);
 
